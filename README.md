@@ -19,7 +19,7 @@ This project provides emulators for different types of ammeters: Greenlee, ENTES
   - `run_tests.py`: Example of sampling from all three emulators.
 - `src/`
   - `testing/`
-    - `test_framework.py`: Timed sampling of ammeter measurements.
+    - `test_framework.py`: Timed sampling and statistical summaries.
   - `utils/`
     - `config.py`: Configuration settings.
     - `logger.py`: Logging setup.
@@ -85,8 +85,11 @@ parameters must be positive. For `all`, each ammeter is sampled sequentially
 with its own duration limit. Sampling stops at the requested count or when the
 next measurement cannot start within the duration. A request that times out or
 exceeds the duration raises an error instead of returning a partial success.
-The framework returns measurement values and elapsed times; the command prints
-the measurements and a count/stop-reason summary.
+The framework returns measurement values, elapsed times, and mean, median,
+minimum, maximum, and population standard deviation in amperes. For a single
+measurement the population standard deviation is zero; if there are no
+measurements, the statistics are `None`. The command prints the measurements,
+count, stop reason, and statistics.
 
 The original `config/config.yaml` is not used by this sampling interface yet.
 The example can also be run from the project root using:

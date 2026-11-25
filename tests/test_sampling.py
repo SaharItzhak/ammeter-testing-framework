@@ -41,6 +41,47 @@ class SamplingTests(unittest.TestCase):
         self.assertEqual(self.clock.sleeps, [0.5, 0.5])
         self.assertEqual(self.request.call_count, 3)
         self.request.assert_any_call(1234, b"MEASURE", timeout=5.0)
+        self.assertEqual(
+            result["statistics"],
+            {"mean": 1.5, "median": 1.5, "standard_deviation": 0.0,
+             "minimum": 1.5, "maximum": 1.5},
+        )
+
+    def test_statistics_for_even_number_of_measurements(self):
+        self.request.side_effect = [1.0, 3.0, 5.0, 7.0]
+        with patch("src.testing.test_framework.time", self.clock):
+            result = self.framework.run_test("greenlee", 4, 5, 2)
+
+        self.assertEqual(result["statistics"]["mean"], 4.0)
+        self.assertEqual(result["statistics"]["median"], 4.0)
+        self.assertAlmostEqual(result["statistics"]["standard_deviation"], 5 ** 0.5)
+        self.assertEqual(result["statistics"]["minimum"], 1.0)
+        self.assertEqual(result["statistics"]["maximum"], 7.0)
+
+    def test_statistics_for_odd_number_of_measurements(self):
+        self.request.side_effect = [1.0, 3.0, 8.0]
+        with patch("src.testing.test_framework.time", self.clock):
+            result = self.framework.run_test("greenlee", 3, 5, 2)
+
+        self.assertEqual(result["statistics"]["mean"], 4.0)
+        self.assertEqual(result["statistics"]["median"], 3.0)
+        self.assertAlmostEqual(result["statistics"]["standard_deviation"], (26 / 3) ** 0.5)
+
+    def test_single_measurement_has_zero_population_deviation(self):
+        with patch("src.testing.test_framework.time", self.clock):
+            result = self.framework.run_test("greenlee", 1, 5, 2)
+
+        self.assertEqual(result["statistics"]["standard_deviation"], 0.0)
+
+    def test_no_measurements_have_no_statistics(self):
+        clock = SimpleNamespace(monotonic=Mock(side_effect=[0.0, 2.0, 2.0]))
+        with patch("src.testing.test_framework.time", clock):
+            result = self.framework.run_test("greenlee", 1, 1, 2)
+
+        self.assertEqual(result["measurements"], [])
+        self.assertEqual(result["stop_reason"], "duration")
+        self.assertIsNone(result["statistics"])
+        self.request.assert_not_called()
 
     def test_duration_limits_number_of_measurements(self):
         with patch("src.testing.test_framework.time", self.clock):

@@ -1,7 +1,8 @@
 import math
+import statistics
 import time
 from collections.abc import Callable, Mapping
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 from Ammeters.base_ammeter import AmmeterEmulatorBase
 from Ammeters.client import request_current_from_ammeter
@@ -12,11 +13,20 @@ class Measurement(TypedDict):
     current_amperes: float
 
 
+class MeasurementStatistics(TypedDict):
+    mean: float
+    median: float
+    standard_deviation: float
+    minimum: float
+    maximum: float
+
+
 class TestResult(TypedDict):
     ammeter: str
     measurements: list[Measurement]
     elapsed_seconds: float
     stop_reason: str
+    statistics: Optional[MeasurementStatistics]
 
 
 class AmmeterTestFramework:
@@ -81,9 +91,21 @@ class AmmeterTestFramework:
             measurements.append({"elapsed_seconds": now - start, "current_amperes": current})
             next_sample = max(next_sample + interval, now + interval)
 
+        values = [measurement["current_amperes"] for measurement in measurements]
+        summary: Optional[MeasurementStatistics] = None
+        if values:
+            summary = {
+                "mean": statistics.mean(values),
+                "median": statistics.median(values),
+                "standard_deviation": statistics.pstdev(values),
+                "minimum": min(values),
+                "maximum": max(values),
+            }
+
         return {
             "ammeter": ammeter_type,
             "measurements": measurements,
             "elapsed_seconds": time.monotonic() - start,
             "stop_reason": "count" if len(measurements) == measurements_count else "duration",
+            "statistics": summary,
         }

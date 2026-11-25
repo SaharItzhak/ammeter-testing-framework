@@ -34,6 +34,16 @@ def main(ammeter_type="all", count=1, duration=5.0, frequency=1.0):
             for name in selected:
                 result = framework.run_test(name, count, duration, frequency)
                 print(f"{name}: {len(result['measurements'])} measurements ({result['stop_reason']})")
+                summary = result["statistics"]
+                if summary is None:
+                    print("  No measurements available for statistics.")
+                else:
+                    print(
+                        f"  Mean: {summary['mean']:.6g} A; "
+                        f"median: {summary['median']:.6g} A; "
+                        f"population standard deviation: {summary['standard_deviation']:.6g} A; "
+                        f"min: {summary['minimum']:.6g} A; max: {summary['maximum']:.6g} A"
+                    )
         finally:
             stop.set()
     for future in futures:
