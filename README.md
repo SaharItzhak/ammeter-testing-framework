@@ -28,7 +28,8 @@ This project provides emulators for different types of ammeters: Greenlee, ENTES
 ## Usage
 
 Read the [exercise specification](Exam/ammeter-test-specification.md) before
-starting. The baseline emulators use the Python 3 standard library.
+starting. Use Python 3.9 or newer. The emulators use the Python standard
+library; the configuration loader requires PyYAML.
 
 To create an isolated environment, run `python -m venv .venv` from the project
 root, then activate it:
@@ -36,8 +37,11 @@ root, then activate it:
 - Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
 - macOS or Linux: `source .venv/bin/activate`
 
-Additional packages are listed in `requirements.txt`; install them with
-`python -m pip install -r requirements.txt` if needed for framework work.
+Install the project's runtime dependency:
+
+```sh
+python -m pip install -r requirements.txt
+```
 
 The default ammeter ports, sampling count, duration, and frequency are read
 from `config/config.yaml`. Edit that file for repeatable settings. Command-line
@@ -51,6 +55,9 @@ Servers are stopped and their worker threads are joined on exit, including when
 a request fails. Socket timeouts prevent idle clients from blocking shutdown.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
 terminals that cannot display the ohm symbol.
+
+If a configured port is already in use, change its value in
+`config/config.yaml` before running the emulators.
 
 ## Greenlee Ammeter
 
@@ -95,6 +102,17 @@ minimum, maximum, and population standard deviation in amperes. For a single
 measurement the population standard deviation is zero; if there are no
 measurements, the statistics are `None`. The command prints the measurements,
 count, stop reason, and statistics.
+
+Example output from one successful run using all three emulators:
+
+| Ammeter | Measurements | Mean current |
+| --- | ---: | ---: |
+| Greenlee | 1 | 0.137909 A |
+| ENTES | 1 | 24.3893 A |
+| CIRCUTOR | 1 | 0.0217388 A |
+
+These are sample emulator values, not accuracy claims; new runs generate
+different measurements.
 
 ### Run history
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from main import load_runtime_config
+from main import DEFAULT_CONFIG, load_runtime_config
 from src.testing.history import HistoryStore
 
 
@@ -35,6 +35,13 @@ class RuntimeConfigTests(unittest.TestCase):
     def write_config(self):
         self.path.write_text(yaml.safe_dump(self.config), encoding="utf-8")
         return load_runtime_config(self.path)
+
+    def test_default_configuration_loads(self):
+        config = load_runtime_config(DEFAULT_CONFIG)
+
+        self.assertEqual(config["sampling"]["measurements_count"], 1)
+        self.assertEqual(config["ports"], {"greenlee": 5001, "entes": 5002, "circutor": 5003})
+        self.assertEqual(config["history_database"], Path("results/history.sqlite3"))
 
     def test_loads_sampling_ports_and_history_path(self):
         config = self.write_config()
