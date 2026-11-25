@@ -228,6 +228,7 @@ def main() -> None:
     parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("list", help="List saved runs")
+    commands.add_parser("report", help="Open the visual run-history report")
     show = commands.add_parser("show", help="Show a saved run")
     show.add_argument("run_id")
     compare = commands.add_parser("compare", help="Compare two saved runs")
@@ -240,6 +241,10 @@ def main() -> None:
         if args.command == "list":
             runs = store.list_runs()
             output = _format_runs(runs)
+        elif args.command == "report":
+            from src.testing.report import open_report
+
+            output = open_report(args.database)
         elif args.command == "show":
             output = _format_run(store.get(args.run_id))
         else:

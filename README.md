@@ -55,6 +55,9 @@ Servers are stopped and their worker threads are joined on exit, including when
 a request fails. Socket timeouts prevent idle clients from blocking shutdown.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
 terminals that cannot display the ohm symbol.
+After a successful run, the project creates `results/history.html` and opens
+the visual report in your browser. The report stays local and is excluded from
+Git.
 
 If a configured port is already in use, change its value in
 `config/config.yaml` before running the emulators.
@@ -125,16 +128,20 @@ location; custom database paths are not necessarily ignored by Git.
 From the project root, inspect the default database using:
 
 ```sh
+python -m src.testing.history report
 python -m src.testing.history list
 python -m src.testing.history show RUN_ID
 python -m src.testing.history compare FIRST_RUN_ID SECOND_RUN_ID
 ```
 
-`list` shows a readable table of saved runs, `show` displays the measurements
-and summary for one run, and `compare` displays statistical differences. If no
-run has been saved yet, `list` explains how to start; `show` and `compare`
-report a clear error for missing run IDs. A sampling attempt that produces no
-measurements fails explicitly and is not stored as a successful run.
+`report` refreshes and opens the complete visual history without starting a new
+measurement. It includes search, ammeter filtering, per-run details, and
+comparison of two runs. For a custom database, the report is saved beside that
+database with an `.html` extension. `list`, `show`, and `compare` remain
+available as terminal alternatives. If no run has been saved yet, the report
+explains how to start; terminal commands give clear messages for empty history
+or missing IDs. A sampling attempt that produces no measurements fails
+explicitly and is not stored as a successful run.
 
 For a custom database, add `--database path` before the command. Comparison
 shows both records and statistical differences (second minus first); those

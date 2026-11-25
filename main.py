@@ -12,6 +12,7 @@ from Ammeters.Entes_Ammeter import EntesAmmeter
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 from Ammeters.client import request_current_from_ammeter
 from src.testing.history import DEFAULT_DATABASE, HistoryStore
+from src.testing.report import open_report
 from src.testing.test_framework import AmmeterTestFramework
 from src.utils.config import load_config
 
@@ -76,7 +77,7 @@ def main(
     frequency=None,
     database=None,
     config_path=DEFAULT_CONFIG,
-):
+) -> Path:
     config = load_runtime_config(Path(config_path))
     sampling = config["sampling"]
     count = sampling["measurements_count"] if count is None else count
@@ -141,6 +142,7 @@ def main(
             stop.set()
     for future in futures:
         future.result()
+    return database
 
 
 if __name__ == "__main__":
@@ -153,6 +155,14 @@ if __name__ == "__main__":
     parser.add_argument("--database", type=Path, default=None, help="override configured history database")
     args = parser.parse_args()
     try:
-        main(args.ammeter, args.count, args.duration, args.frequency, args.database, args.config)
+        database = main(
+            args.ammeter,
+            args.count,
+            args.duration,
+            args.frequency,
+            args.database,
+            args.config,
+        )
+        print(open_report(database))
     except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
         parser.exit(1, f"Run failed: {error}\n")
