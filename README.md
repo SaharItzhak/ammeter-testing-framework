@@ -41,6 +41,8 @@ Additional packages are listed in `requirements.txt`; install them with
 
 `main.py` starts the three emulators, waits until each is listening (up to five
 seconds per emulator), and requests one measurement from each before exiting.
+Servers are stopped and their worker threads are joined on exit, including when
+a request fails. Socket timeouts prevent idle clients from blocking shutdown.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
 terminals that cannot display the ohm symbol.
 
