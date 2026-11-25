@@ -1,15 +1,18 @@
 import argparse
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
 
 from Ammeters.Circutor_Ammeter import CircutorAmmeter
 from Ammeters.Entes_Ammeter import EntesAmmeter
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 from Ammeters.client import request_current_from_ammeter
+from src.testing.history import DEFAULT_DATABASE, HistoryStore
 from src.testing.test_framework import AmmeterTestFramework
 
 
-def main(ammeter_type="all", count=1, duration=5.0, frequency=1.0):
+def main(ammeter_type="all", count=1, duration=5.0, frequency=1.0, database=DEFAULT_DATABASE):
     stop = threading.Event()
     ammeters = {
         "greenlee": GreenleeAmmeter(5001),
@@ -31,9 +34,21 @@ def main(ammeter_type="all", count=1, duration=5.0, frequency=1.0):
                         f"{ammeter.__class__.__name__} did not start within 5 seconds"
                     )
             framework = AmmeterTestFramework(selected, request=request_current_from_ammeter)
+            history = HistoryStore(database)
             for name in selected:
+                started_at = datetime.now(timezone.utc).isoformat()
                 result = framework.run_test(name, count, duration, frequency)
+                record = history.save(
+                    result,
+                    {
+                        "measurements_count": count,
+                        "total_duration_seconds": duration,
+                        "sampling_frequency_hz": frequency,
+                    },
+                    started_at,
+                )
                 print(f"{name}: {len(result['measurements'])} measurements ({result['stop_reason']})")
+                print(f"  Saved run: {record['id']}")
                 summary = result["statistics"]
                 if summary is None:
                     print("  No measurements available for statistics.")
@@ -56,5 +71,6 @@ if __name__ == "__main__":
     parser.add_argument("--count", type=int, default=1, help="maximum measurements per ammeter")
     parser.add_argument("--duration", type=float, default=5.0, help="maximum seconds per ammeter")
     parser.add_argument("--frequency", type=float, default=1.0, help="maximum measurements per second")
+    parser.add_argument("--database", type=Path, default=DEFAULT_DATABASE, help="history database path")
     args = parser.parse_args()
-    main(args.ammeter, args.count, args.duration, args.frequency)
+    main(args.ammeter, args.count, args.duration, args.frequency, args.database)

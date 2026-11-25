@@ -91,6 +91,28 @@ measurement the population standard deviation is zero; if there are no
 measurements, the statistics are `None`. The command prints the measurements,
 count, stop reason, and statistics.
 
+### Run history
+
+Each successfully completed ammeter run is saved to `results/history.sqlite3`
+and its unique ID is printed. The database contains UTC start/save times,
+sampling parameters, raw measurements, and statistics. The default database is
+local and ignored by Git. Set `--database path` on `main.py` to use another
+location; custom database paths are not necessarily ignored by Git.
+
+From the project root, inspect the default database using:
+
+```sh
+python -m src.testing.history list
+python -m src.testing.history show RUN_ID
+python -m src.testing.history compare FIRST_RUN_ID SECOND_RUN_ID
+```
+
+For a custom database, add `--database path` before the command. Comparison
+shows both records and statistical differences (second minus first); those
+differences alone do not establish device accuracy. A failed measurement is
+not saved as a successful run. When sampling multiple ammeters, earlier
+completed runs remain saved if a later run fails.
+
 The original `config/config.yaml` is not used by this sampling interface yet.
 The example can also be run from the project root using:
 
