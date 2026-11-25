@@ -2,15 +2,27 @@ import socket
 import threading
 import unittest
 from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 import main
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 
+TEST_RUNTIME_CONFIG = {
+    "sampling": {
+        "measurements_count": 1,
+        "total_duration_seconds": 5.0,
+        "sampling_frequency_hz": 1.0,
+    },
+    "ports": {"greenlee": 5001, "entes": 5002, "circutor": 5003},
+    "history_database": Path("unused-history.sqlite3"),
+}
+
 
 class ServerReadinessTests(unittest.TestCase):
+    @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
     @patch("main.ThreadPoolExecutor")
     @patch("threading.Event.wait", return_value=False)
-    def test_startup_timeout_is_reported(self, wait, executor_factory):
+    def test_startup_timeout_is_reported(self, wait, executor_factory, runtime_config):
         executor = executor_factory.return_value.__enter__.return_value
         executor.submit.return_value.done.return_value = False
         with self.assertRaisesRegex(RuntimeError, "GreenleeAmmeter did not start"):
@@ -20,9 +32,10 @@ class ServerReadinessTests(unittest.TestCase):
         self.assertTrue(executor.submit.call_args.args[2].is_set())
         wait.assert_called_once_with(timeout=5)
 
+    @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
     @patch("main.request_current_from_ammeter", side_effect=OSError("request failed"))
     @patch("Ammeters.base_ammeter.AmmeterEmulatorBase.start_server")
-    def test_request_failure_stops_and_joins_workers(self, start_server, request):
+    def test_request_failure_stops_and_joins_workers(self, start_server, request, runtime_config):
         stopped = []
 
         def serve(ready, stop):

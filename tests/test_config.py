@@ -85,6 +85,11 @@ class RuntimeConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "history_database"):
             load_runtime_config(self.path)
 
+    def test_malformed_yaml_is_reported_as_configuration_error(self):
+        self.path.write_text("testing: [unclosed", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Invalid YAML configuration"):
+            load_runtime_config(self.path)
+
     def test_application_uses_configured_ports_sampling_and_history(self):
         ports = []
         for _ in range(3):

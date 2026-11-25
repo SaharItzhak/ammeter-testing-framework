@@ -1,5 +1,6 @@
 import argparse
 import math
+import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -111,6 +112,10 @@ def main(
             for name in selected:
                 started_at = datetime.now(timezone.utc).isoformat()
                 result = framework.run_test(name, count, duration, frequency)
+                if not result["measurements"]:
+                    raise RuntimeError(
+                        f"{name} produced no measurements; no history record was saved"
+                    )
                 record = history.save(
                     result,
                     {
@@ -147,4 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--frequency", type=float, default=None, help="override configured frequency in Hz")
     parser.add_argument("--database", type=Path, default=None, help="override configured history database")
     args = parser.parse_args()
-    main(args.ammeter, args.count, args.duration, args.frequency, args.database, args.config)
+    try:
+        main(args.ammeter, args.count, args.duration, args.frequency, args.database, args.config)
+    except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
+        parser.exit(1, f"Run failed: {error}\n")

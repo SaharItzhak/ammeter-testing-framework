@@ -112,6 +112,12 @@ python -m src.testing.history show RUN_ID
 python -m src.testing.history compare FIRST_RUN_ID SECOND_RUN_ID
 ```
 
+`list` shows a readable table of saved runs, `show` displays the measurements
+and summary for one run, and `compare` displays statistical differences. If no
+run has been saved yet, `list` explains how to start; `show` and `compare`
+report a clear error for missing run IDs. A sampling attempt that produces no
+measurements fails explicitly and is not stored as a successful run.
+
 For a custom database, add `--database path` before the command. Comparison
 shows both records and statistical differences (second minus first); those
 differences alone do not establish device accuracy. A failed measurement is
