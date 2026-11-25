@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import subprocess
 import sys
@@ -110,7 +111,7 @@ class HistoryTests(unittest.TestCase):
     def test_empty_database_is_reported_as_no_runs(self):
         self.save("greenlee", 1.0)
         self.path.unlink()
-        with sqlite3.connect(self.path):
+        with closing(sqlite3.connect(self.path)):
             pass
 
         completed = subprocess.run(
