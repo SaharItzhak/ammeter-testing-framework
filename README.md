@@ -39,9 +39,10 @@ root, then activate it:
 Additional packages are listed in `requirements.txt`; install them with
 `python -m pip install -r requirements.txt` if needed for framework work.
 
-The baseline `main.py` starts the three emulators, waits five seconds, and exits.
-The measurement requests are commented out, so it does not yet print measurements.
-Making it return measurements is part of the exercise.
+`main.py` starts the three emulators, waits five seconds, and requests one
+measurement from each before exiting.
+Greenlee prints resistance in `ohms` to avoid output encoding errors on
+terminals that cannot display the ohm symbol.
 
 ## Greenlee Ammeter
 
@@ -64,7 +65,7 @@ Making it return measurements is part of the exercise.
 - **Measurement Logic**: Calculates current using voltage values (0.1V - 1.0V) over a number of samples and a random time step (0.001s - 0.01s).
 - **Measurement method** : Rogowski Coil Integration: I = ∫V dt
 
-To start the baseline emulators, run:
+To start the emulators and request measurements, run:
 ```sh
 python main.py
 ```
