@@ -1,5 +1,6 @@
 import socket
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from Ammeters.client import request_current_from_ammeter
@@ -42,6 +43,22 @@ class ClientTests(unittest.TestCase):
 
         with self.assertRaises(socket.timeout):
             request_current_from_ammeter(5001, b"MEASURE")
+
+    @patch("Ammeters.client.socket")
+    def test_timeout_budget_is_shared_across_response_chunks(self, socket_factory):
+        connection = socket_factory.return_value.__enter__.return_value
+        clock = SimpleNamespace(now=0.0)
+
+        def recv(size):
+            clock.now += 3
+            return b"1"
+
+        connection.recv.side_effect = recv
+        with patch("Ammeters.client.time.monotonic", side_effect=lambda: clock.now):
+            with self.assertRaisesRegex(TimeoutError, "timed out"):
+                request_current_from_ammeter(5001, b"MEASURE", timeout=5)
+
+        self.assertEqual(connection.recv.call_count, 2)
 
 
 if __name__ == "__main__":

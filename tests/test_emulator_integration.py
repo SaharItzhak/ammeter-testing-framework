@@ -10,6 +10,7 @@ from Ammeters.Circutor_Ammeter import CircutorAmmeter
 from Ammeters.Entes_Ammeter import EntesAmmeter
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 from Ammeters.client import request_current_from_ammeter
+from src.testing.test_framework import AmmeterTestFramework
 
 
 class EmulatorIntegrationTests(unittest.TestCase):
@@ -46,6 +47,11 @@ class EmulatorIntegrationTests(unittest.TestCase):
                             )
                             self.assertTrue(math.isfinite(measurement))
                             self.assertGreater(measurement, 0)
+                            ammeter.port = port
+                            framework = AmmeterTestFramework({"meter": ammeter})
+                            result = framework.run_test("meter", 2, 3, 50)
+                            self.assertEqual(result["stop_reason"], "count")
+                            self.assertEqual(len(result["measurements"]), 2)
                         finally:
                             stop.set()
                     server.result()

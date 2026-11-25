@@ -1,14 +1,27 @@
 import math
+import time
 from socket import socket, AF_INET, SOCK_STREAM
 
 
-def request_current_from_ammeter(port: int, command: bytes) -> float:
+def request_current_from_ammeter(port: int, command: bytes, timeout: float = 5) -> float:
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("timeout must be a positive finite number")
+    deadline = time.monotonic() + timeout
+
+    def set_remaining_timeout(s):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"Measurement request to port {port} timed out")
+        s.settimeout(remaining)
+
     with socket(AF_INET, SOCK_STREAM) as s:
-        s.settimeout(5)
+        set_remaining_timeout(s)
         s.connect(('localhost', port))
+        set_remaining_timeout(s)
         s.sendall(command)
         data = bytearray()
         while True:
+            set_remaining_timeout(s)
             chunk = s.recv(1024)
             if not chunk:
                 break

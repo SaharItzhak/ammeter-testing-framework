@@ -16,10 +16,10 @@ This project provides emulators for different types of ammeters: Greenlee, ENTES
 - `Exam/`
   - `ammeter-test-specification.md`: Exercise requirements.
 - `examples/`
-  - `run_tests.py`: Incomplete example for running tests.
+  - `run_tests.py`: Example of sampling from all three emulators.
 - `src/`
   - `testing/`
-    - `test_framework.py`: Starting point for the testing framework.
+    - `test_framework.py`: Timed sampling of ammeter measurements.
   - `utils/`
     - `config.py`: Configuration settings.
     - `logger.py`: Logging setup.
@@ -39,8 +39,9 @@ root, then activate it:
 Additional packages are listed in `requirements.txt`; install them with
 `python -m pip install -r requirements.txt` if needed for framework work.
 
-`main.py` starts the three emulators, waits until each is listening (up to five
-seconds per emulator), and requests one measurement from each before exiting.
+`main.py` starts the selected emulators, waits until each is listening (up to
+five seconds per emulator), and samples each one before exiting. By default it
+requests one measurement from each.
 Servers are stopped and their worker threads are joined on exit, including when
 a request fails. Socket timeouts prevent idle clients from blocking shutdown.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
@@ -70,4 +71,32 @@ terminals that cannot display the ohm symbol.
 To start the emulators and request measurements, run:
 ```sh
 python main.py
+```
+
+For example, sample Greenlee up to five times at two measurements per second,
+with a three-second maximum duration:
+
+```sh
+python main.py --ammeter greenlee --count 5 --frequency 2 --duration 3
+```
+
+`--ammeter` accepts `all`, `greenlee`, `entes`, or `circutor`; the other
+parameters must be positive. For `all`, each ammeter is sampled sequentially
+with its own duration limit. Sampling stops at the requested count or when the
+next measurement cannot start within the duration. A request that times out or
+exceeds the duration raises an error instead of returning a partial success.
+The framework returns measurement values and elapsed times; the command prints
+the measurements and a count/stop-reason summary.
+
+The original `config/config.yaml` is not used by this sampling interface yet.
+The example can also be run from the project root using:
+
+```sh
+python -m examples.run_tests
+```
+
+Run the test suite with:
+
+```sh
+python -m unittest discover -s tests -v
 ```
