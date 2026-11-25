@@ -2,6 +2,8 @@ import socket
 import time
 import random
 from abc import ABC, abstractmethod
+from threading import Event
+from typing import Optional
 
 NotImplementedErrorMsg = "Subclasses must implement this property."
 
@@ -10,7 +12,7 @@ class AmmeterEmulatorBase(ABC):
         self.port = port
         random.seed(time.time())  # Seed the random number generator for each instance
 
-    def start_server(self):
+    def start_server(self, ready: Optional[Event] = None):
         """
         Starts the server to listen for client requests.
         The server will run indefinitely, handling one client request at a time.
@@ -19,6 +21,8 @@ class AmmeterEmulatorBase(ABC):
             s.bind(('localhost', self.port))
             s.listen()
             print(f"{self.__class__.__name__} is running on port {self.port}")
+            if ready is not None:
+                ready.set()
             while True:
                 conn, addr = s.accept()
                 with conn:

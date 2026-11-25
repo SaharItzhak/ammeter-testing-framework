@@ -39,8 +39,8 @@ root, then activate it:
 Additional packages are listed in `requirements.txt`; install them with
 `python -m pip install -r requirements.txt` if needed for framework work.
 
-`main.py` starts the three emulators, waits five seconds, and requests one
-measurement from each before exiting.
+`main.py` starts the three emulators, waits until each is listening (up to five
+seconds per emulator), and requests one measurement from each before exiting.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
 terminals that cannot display the ohm symbol.
 
