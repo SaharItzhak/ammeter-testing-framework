@@ -39,6 +39,11 @@ root, then activate it:
 Additional packages are listed in `requirements.txt`; install them with
 `python -m pip install -r requirements.txt` if needed for framework work.
 
+The default ammeter ports, sampling count, duration, and frequency are read
+from `config/config.yaml`. Edit that file for repeatable settings. Command-line
+options such as `--count` and `--frequency` override the corresponding
+configuration value for one run; `--config path` selects another YAML file.
+
 `main.py` starts the selected emulators, waits until each is listening (up to
 five seconds per emulator), and samples each one before exiting. By default it
 requests one measurement from each.
@@ -73,18 +78,18 @@ To start the emulators and request measurements, run:
 python main.py
 ```
 
-For example, sample Greenlee up to five times at two measurements per second,
-with a three-second maximum duration:
+For a one-time override, sample Greenlee up to five times at two measurements
+per second, with a three-second maximum duration:
 
 ```sh
 python main.py --ammeter greenlee --count 5 --frequency 2 --duration 3
 ```
 
-`--ammeter` accepts `all`, `greenlee`, `entes`, or `circutor`; the other
-parameters must be positive. For `all`, each ammeter is sampled sequentially
-with its own duration limit. Sampling stops at the requested count or when the
-next measurement cannot start within the duration. A request that times out or
-exceeds the duration raises an error instead of returning a partial success.
+`--ammeter` accepts `all`, `greenlee`, `entes`, or `circutor`. For `all`, each
+ammeter is sampled sequentially with its own duration limit. Sampling stops at
+the requested count or when the next measurement cannot start within the
+duration. A request that times out or exceeds the duration raises an error
+instead of returning a partial success.
 The framework returns measurement values, elapsed times, and mean, median,
 minimum, maximum, and population standard deviation in amperes. For a single
 measurement the population standard deviation is zero; if there are no
@@ -113,7 +118,6 @@ differences alone do not establish device accuracy. A failed measurement is
 not saved as a successful run. When sampling multiple ammeters, earlier
 completed runs remain saved if a later run fails.
 
-The original `config/config.yaml` is not used by this sampling interface yet.
 The example can also be run from the project root using:
 
 ```sh
