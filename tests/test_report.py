@@ -1,4 +1,4 @@
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import tempfile
 import unittest
@@ -49,7 +49,8 @@ class ReportTests(unittest.TestCase):
         report = report_path.read_text(encoding="utf-8")
 
         self.assertEqual(report_path, self.database.with_suffix(".html"))
-        self.assertIn("עוד אין היסטוריה", report)
+        self.assertIn('<html lang="en" dir="ltr">', report)
+        self.assertIn("No history yet", report)
         self.assertIn("python main.py", report)
         self.assertFalse(self.database.exists())
 
@@ -58,13 +59,16 @@ class ReportTests(unittest.TestCase):
 
         report = generate_report(self.database).read_text(encoding="utf-8")
 
-        self.assertIn("היסטוריית בדיקות אמפר", report)
+        self.assertIn("Ammeter test history", report)
+        self.assertNotRegex(report, r"[\u0590-\u05FF]")
         self.assertIn("1.25 A", report)
-        self.assertIn("הגדרות דגימה", report)
-        self.assertIn("5 שנ׳", report)
+        self.assertIn("Sampling settings", report)
+        self.assertIn("5 s", report)
         self.assertIn("data-mean=", report)
         self.assertIn("&lt;img", report)
         self.assertNotIn('<img src=x onerror="alert(1)">', report)
+        self.assertTrue(self.database.is_file())
+        self.assertEqual(len(self.store.list_runs()), 1)
 
     @patch("src.testing.report.webbrowser.open", return_value=True)
     def test_open_report_launches_local_file(self, browser_open):
@@ -83,3 +87,22 @@ class ReportTests(unittest.TestCase):
         self.assertIn("opened in your browser", output.getvalue())
         self.assertTrue(self.database.with_suffix(".html").is_file())
         browser_open.assert_called_once()
+
+    @patch("src.testing.report.webbrowser.open", return_value=False)
+    def test_browser_unavailable_leaves_report_path(self, browser_open):
+        message = open_report(self.database)
+
+        self.assertIn(str(self.database.with_suffix(".html")), message)
+        self.assertIn("Open this file in a browser", message)
+
+    def test_corrupt_database_report_returns_a_clear_error(self):
+        self.database.write_bytes(b"not a SQLite database")
+        output = StringIO()
+        with patch("sys.argv", ["history", "--database", str(self.database), "report"]):
+            with redirect_stderr(output):
+                with self.assertRaises(SystemExit) as raised:
+                    history_main()
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("History error:", output.getvalue())
+        self.assertNotIn("Traceback", output.getvalue())

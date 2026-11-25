@@ -10,11 +10,11 @@ if TYPE_CHECKING:
     from src.testing.history import HistoryRecord
 
 STATISTICS = (
-    ("mean", "ממוצע"),
-    ("median", "חציון"),
-    ("standard_deviation", "סטיית תקן"),
-    ("minimum", "מינימום"),
-    ("maximum", "מקסימום"),
+    ("mean", "Mean"),
+    ("median", "Median"),
+    ("standard_deviation", "Standard deviation"),
+    ("minimum", "Minimum"),
+    ("maximum", "Maximum"),
 )
 
 
@@ -33,11 +33,11 @@ def _format_timestamp(value: str) -> str:
 def _measurement_rows(record: HistoryRecord) -> str:
     measurements = record["result"]["measurements"]
     if not measurements:
-        return '<tr><td colspan="3" class="empty-cell">לא נאספו מדידות</td></tr>'
+        return '<tr><td colspan="3" class="empty-cell">No measurements were collected.</td></tr>'
     return "".join(
         "<tr>"
         f'<td dir="ltr">{index}</td>'
-        f'<td dir="ltr">{measurement["elapsed_seconds"]:.3f} שנ׳</td>'
+        f'<td dir="ltr">{measurement["elapsed_seconds"]:.3f} s</td>'
         f'<td dir="ltr">{_format_number(measurement["current_amperes"])} A</td>'
         "</tr>"
         for index, measurement in enumerate(measurements, 1)
@@ -47,7 +47,7 @@ def _measurement_rows(record: HistoryRecord) -> str:
 def _statistics_rows(record: HistoryRecord) -> str:
     statistics = record["result"]["statistics"]
     if statistics is None:
-        return '<p class="muted">אין נתונים סטטיסטיים לריצה זו.</p>'
+        return '<p class="muted">No statistics are available for this run.</p>'
     return "".join(
         f"<div><dt>{label}</dt><dd dir=\"ltr\">"
         f"{_format_number(statistics[key])} A</dd></div>"
@@ -63,17 +63,17 @@ def _run_row(record: HistoryRecord) -> str:
     statistics = result["statistics"]
     mean = "" if statistics is None else _format_number(statistics["mean"])
     details = (
-        f'<details><summary>פרטי ריצה</summary>'
+        f'<details><summary>Run details</summary>'
         '<div class="run-meta">'
-        f'<div><span>תחילת הריצה</span><strong dir="ltr">{_escape(_format_timestamp(record["started_at"]))}</strong></div>'
-        f'<div><span>משך בפועל</span><strong dir="ltr">{result["elapsed_seconds"]:.3f} שנ׳</strong></div>'
-        f'<div><span>סיבת עצירה</span><strong>{_escape(result["stop_reason"])}</strong></div>'
-        f'<div><span>הגדרות דגימה</span><strong dir="ltr">{parameters["measurements_count"]} מדידות · '
-        f'{parameters["total_duration_seconds"]:g} שנ׳ · {parameters["sampling_frequency_hz"]:g} Hz</strong></div>'
+        f'<div><span>Started</span><strong dir="ltr">{_escape(_format_timestamp(record["started_at"]))}</strong></div>'
+        f'<div><span>Elapsed</span><strong dir="ltr">{result["elapsed_seconds"]:.3f} s</strong></div>'
+        f'<div><span>Stop reason</span><strong>{_escape(result["stop_reason"])}</strong></div>'
+        f'<div><span>Sampling settings</span><strong dir="ltr">{parameters["measurements_count"]} measurements · '
+        f'{parameters["total_duration_seconds"]:g} s · {parameters["sampling_frequency_hz"]:g} Hz</strong></div>'
         "</div>"
         f'<dl class="stats">{_statistics_rows(record)}</dl>'
-        '<h4>מדידות</h4><div class="table-scroll"><table>'
-        "<thead><tr><th>#</th><th>זמן</th><th>זרם</th></tr></thead>"
+        '<h4>Measurements</h4><div class="table-scroll"><table>'
+        "<thead><tr><th>#</th><th>Time</th><th>Current</th></tr></thead>"
         f"<tbody>{_measurement_rows(record)}</tbody></table></div>"
         "</details>"
     )
@@ -121,8 +121,8 @@ def _render_html(records: list[HistoryRecord]) -> str:
         if records
         else (
             '<div class="empty-state"><div class="empty-icon" aria-hidden="true">↗</div>'
-            "<h2>עוד אין היסטוריה</h2>"
-            "<p>אחרי הרצת הבדיקה הראשונה, המדידות והסיכום יופיעו כאן.</p>"
+            "<h2>No history yet</h2>"
+            "<p>Run your first test to see measurements and a summary here.</p>"
             "<code dir=\"ltr\">python main.py</code></div>"
         )
     )
@@ -130,15 +130,15 @@ def _render_html(records: list[HistoryRecord]) -> str:
     compare_note = (
         ""
         if len(records) >= 2
-        else '<p class="muted">צריך לפחות שתי ריצות שמורות כדי להשוות ביניהן.</p>'
+        else '<p class="muted">Save at least two runs to compare them.</p>'
     )
     return f"""<!doctype html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>היסטוריית בדיקות אמפר</title>
+  <title>Ammeter test history</title>
   <style>
     :root {{
       color-scheme: light;
@@ -177,7 +177,7 @@ def _render_html(records: list[HistoryRecord]) -> str:
     button:hover:not(:disabled) {{ background: var(--brand-dark); }}
     button:disabled {{ opacity: .48; cursor: not-allowed; }}
     .table-scroll {{ overflow-x: auto; }}
-    table {{ width: 100%; border-collapse: collapse; text-align: right; }}
+    table {{ width: 100%; border-collapse: collapse; text-align: left; }}
     th {{ padding: 11px 12px; background: #f8fafc; color: #475569; font-size: .82rem; white-space: nowrap; }}
     td {{ padding: 13px 12px; border-top: 1px solid var(--line); vertical-align: top; }}
     tbody tr:hover {{ background: #fbfdff; }}
@@ -220,48 +220,48 @@ def _render_html(records: list[HistoryRecord]) -> str:
     <header class="hero">
       <div>
         <span class="eyebrow">AMMETER TESTING FRAMEWORK</span>
-        <h1>היסטוריית בדיקות אמפר</h1>
-        <p class="intro">כל הריצות, המדידות וההשוואות שלך — במקום אחד ברור.</p>
+        <h1>Ammeter test history</h1>
+        <p class="intro">All your runs, measurements, and comparisons in one clear view.</p>
       </div>
-      <span class="local-badge">● נשמר מקומית במחשב שלך</span>
+      <span class="local-badge">● Stored locally on this computer</span>
     </header>
-    <section class="cards" aria-label="סיכום ההיסטוריה">
-      <article class="card"><span class="card-label">סך הריצות</span><strong class="card-value">{len(records)}</strong></article>
-      <article class="card"><span class="card-label">מכשירי מדידה שנבדקו</span><strong class="card-value">{len(ammeters)}</strong></article>
-      <article class="card"><span class="card-label">הריצה האחרונה</span><strong class="card-value small" dir="ltr">{_escape(latest)}</strong></article>
+    <section class="cards" aria-label="History summary">
+      <article class="card"><span class="card-label">Total runs</span><strong class="card-value">{len(records)}</strong></article>
+      <article class="card"><span class="card-label">Ammeters tested</span><strong class="card-value">{len(ammeters)}</strong></article>
+      <article class="card"><span class="card-label">Latest run</span><strong class="card-value small" dir="ltr">{_escape(latest)}</strong></article>
     </section>
     <section class="panel" aria-labelledby="history-heading">
       <div class="panel-heading">
-        <div><h2 id="history-heading">הריצות שלך</h2><p class="muted">פתחו פרטים כדי לעיין במדידות ובסטטיסטיקה של כל ריצה.</p></div>
+        <div><h2 id="history-heading">Your runs</h2><p class="muted">Expand a run to review its measurements and statistics.</p></div>
       </div>
       {empty_state}
       <div id="historyContent"{' hidden' if not records else ''}>
         <div class="toolbar">
-          <label for="searchRuns">חיפוש לפי מזהה ריצה<input id="searchRuns" type="search" placeholder="הקלידו מזהה..."></label>
-          <label for="filterAmmeter">סינון לפי מכשיר<select id="filterAmmeter"><option value="">כל המכשירים</option>{meter_options}</select></label>
-          <span id="visibleCount" class="muted" aria-live="polite">{len(records)} ריצות</span>
+          <label for="searchRuns">Search by run ID<input id="searchRuns" type="search" placeholder="Enter a run ID..."></label>
+          <label for="filterAmmeter">Filter by ammeter<select id="filterAmmeter"><option value="">All ammeters</option>{meter_options}</select></label>
+          <span id="visibleCount" class="muted" aria-live="polite">{len(records)} runs</span>
         </div>
         <div class="table-scroll">
           <table>
-            <thead><tr><th scope="col">מזהה ריצה</th><th scope="col">מכשיר</th><th scope="col">נשמרה ב־UTC</th><th scope="col">מדידות</th><th scope="col">ממוצע</th><th scope="col">פרטים</th></tr></thead>
+            <thead><tr><th scope="col">Run ID</th><th scope="col">Ammeter</th><th scope="col">Saved (UTC)</th><th scope="col">Samples</th><th scope="col">Mean</th><th scope="col">Details</th></tr></thead>
             <tbody id="runRows">{rows}</tbody>
           </table>
         </div>
       </div>
     </section>
     <section class="panel" aria-labelledby="compare-heading">
-      <h2 id="compare-heading">השוואת שתי ריצות</h2>
-      <p class="muted">ההפרש מחושב כריצה השנייה פחות הראשונה.</p>
-      <p class="muted">הבדל בין מכשירים אינו מדד לדיוק ללא ערך ייחוס ידוע.</p>
+      <h2 id="compare-heading">Compare two runs</h2>
+      <p class="muted">Difference is calculated as the second run minus the first.</p>
+      <p class="muted">Differences between ammeters do not indicate accuracy without a known reference value.</p>
       <div class="compare-grid">
-        <label for="firstRun">ריצה ראשונה<select id="firstRun"{disabled}>{_comparison_options(records)}</select></label>
-        <label for="secondRun">ריצה שנייה<select id="secondRun"{disabled}>{_comparison_options(records)}</select></label>
-        <button id="compareButton" type="button"{disabled}>הצגת השוואה</button>
+        <label for="firstRun">First run<select id="firstRun"{disabled}>{_comparison_options(records)}</select></label>
+        <label for="secondRun">Second run<select id="secondRun"{disabled}>{_comparison_options(records)}</select></label>
+        <button id="compareButton" type="button"{disabled}>Compare runs</button>
       </div>
       {compare_note}
       <div id="compareResult" aria-live="polite"></div>
     </section>
-    <p class="footer">הדוח נוצר מקובץ ההיסטוריה המקומי. הוא אינו נשלח ל־GitHub או לשירות חיצוני.</p>
+    <p class="footer">This report is generated from local history. It is not uploaded to GitHub or any external service.</p>
   </main>
   <script>
     const search = document.getElementById("searchRuns");
@@ -278,12 +278,12 @@ def _render_html(records: list[HistoryRecord]) -> str:
         row.hidden = !matches;
         if (matches) visible += 1;
       }});
-      visibleCount.textContent = `${{visible}} ריצות`;
+      visibleCount.textContent = `${{visible}} runs`;
     }}
     search.addEventListener("input", filterRuns);
     filter.addEventListener("change", filterRuns);
 
-    const labels = {{"mean": "ממוצע", "median": "חציון", "standard-deviation": "סטיית תקן", "minimum": "מינימום", "maximum": "מקסימום"}};
+    const labels = {{"mean": "Mean", "median": "Median", "standard-deviation": "Standard deviation", "minimum": "Minimum", "maximum": "Maximum"}};
     document.getElementById("compareButton").addEventListener("click", () => {{
       const first = document.getElementById("firstRun");
       const second = document.getElementById("secondRun");
@@ -292,7 +292,7 @@ def _render_html(records: list[HistoryRecord]) -> str:
       if (!first.value || !second.value || first.value === second.value) {{
         const note = document.createElement("p");
         note.className = "muted";
-        note.textContent = "בחרו שתי ריצות שונות כדי להשוות.";
+        note.textContent = "Choose two different runs to compare.";
         output.append(note);
         return;
       }}
@@ -305,14 +305,14 @@ def _render_html(records: list[HistoryRecord]) -> str:
       if (!available) {{
         const note = document.createElement("p");
         note.className = "muted";
-        note.textContent = "לא ניתן להשוות סטטיסטיקה: חסרות מדידות באחת הריצות.";
+        note.textContent = "Statistics cannot be compared because one run has no measurements.";
         output.append(note);
         return;
       }}
       const table = document.createElement("table");
       const head = document.createElement("thead");
       const headerRow = document.createElement("tr");
-      ["מדד", "ריצה ראשונה", "ריצה שנייה", "הפרש"].forEach((text) => {{
+      ["Metric", "First run", "Second run", "Difference"].forEach((text) => {{
         const cell = document.createElement("th");
         cell.scope = "col";
         cell.textContent = text;
@@ -327,9 +327,9 @@ def _render_html(records: list[HistoryRecord]) -> str:
         const tolerance = Number.EPSILON * Math.max(1, Math.abs(firstValue), Math.abs(secondValue)) * 8;
         const difference = Math.abs(rawDifference) < tolerance ? 0 : rawDifference;
         const row = document.createElement("tr");
-        [labels[key], `${{firstValue.toLocaleString("he-IL", {{maximumSignificantDigits: 6}})}} A`,
-          `${{secondValue.toLocaleString("he-IL", {{maximumSignificantDigits: 6}})}} A`,
-          `${{difference.toLocaleString("he-IL", {{maximumSignificantDigits: 6}})}} A`]
+        [labels[key], `${{firstValue.toLocaleString("en-US", {{maximumSignificantDigits: 6}})}} A`,
+          `${{secondValue.toLocaleString("en-US", {{maximumSignificantDigits: 6}})}} A`,
+          `${{difference.toLocaleString("en-US", {{maximumSignificantDigits: 6}})}} A`]
           .forEach((text, index) => {{
             const cell = document.createElement("td");
             cell.textContent = text;

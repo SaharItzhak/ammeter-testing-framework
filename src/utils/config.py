@@ -3,9 +3,7 @@ from typing import Any, Dict
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
-    """
-    טעינת קובץ הקונפיגורציה
-    """
+    """Load a configuration file."""
     try:
         with open(config_path, "r", encoding="utf-8") as config_file:
             config = yaml.safe_load(config_file)

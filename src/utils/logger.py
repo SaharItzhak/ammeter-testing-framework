@@ -8,18 +8,14 @@ class TestLogger:
         self.logger = self._setup_logger()
 
     def _setup_logger(self) -> logging.Logger:
-        """
-        הגדרת הלוגר עם פורמט מותאם וכתיבה לקובץ
-        """
-        # יצירת תיקיית הלוגים
+        """Set up the logger and ensure its log directory exists."""
         log_dir = "results/logs"
         os.makedirs(log_dir, exist_ok=True)
 
-        # הגדרת שם הקובץ עם תאריך ומזהה הבדיקה
+        # Construct a filename containing the date and test ID.
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = f"{log_dir}/{timestamp}_{self._test_name}.log"
 
-        # הגדרת הלוגר
         logger = logging.getLogger(f"test_{self._test_name}")
 
 
