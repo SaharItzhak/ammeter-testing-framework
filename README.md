@@ -13,6 +13,8 @@ This project provides emulators for different types of ammeters: Greenlee, ENTES
   - `client.py`: Client to request current measurements from the ammeter emulators.
 - `config/`
   - `config.yaml`: Configuration file for the ammeter emulators.
+- `Exam/`
+  - `ammeter-test-specification.md`: Exercise requirements.
 - `examples/`
   - `run_tests.py`: Incomplete example for running tests.
 - `src/`
@@ -24,6 +26,18 @@ This project provides emulators for different types of ammeters: Greenlee, ENTES
     - `Utils.py`: Utility functions, including `generate_random_float`.
 
 ## Usage
+
+Read the [exercise specification](Exam/ammeter-test-specification.md) before
+starting. The baseline emulators use the Python 3 standard library.
+
+To create an isolated environment, run `python -m venv .venv` from the project
+root, then activate it:
+
+- Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
+- macOS or Linux: `source .venv/bin/activate`
+
+Additional packages are listed in `requirements.txt`; install them with
+`python -m pip install -r requirements.txt` if needed for framework work.
 
 The baseline `main.py` starts the three emulators, waits five seconds, and exits.
 The measurement requests are commented out, so it does not yet print measurements.
