@@ -1,0 +1,16 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local IDE settings and environment variables
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+
+# Generated logs
+/results/logs/
