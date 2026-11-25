@@ -78,6 +78,14 @@
 - הרשאות ה־workflow מוגבלות לקריאת תוכן המאגר. אין שלב deployment:
   זה CI לבדיקות, לא תהליך CD.
 
+## חזרה ל־`ubuntu-latest`
+
+- לבקשת המשתמש, הבדיקות ב־Python 3.12 חזרו לרוץ על `ubuntu-latest`, כדי
+  לבדוק גם את סביבת Ubuntu העדכנית של GitHub Actions.
+- בדיקת Python 3.9 נשארה על `ubuntu-24.04`, משום שבהרצה הקודמת גרסה זו של
+  Python לא הייתה זמינה ב־Ubuntu שאליו הצביע `ubuntu-latest`. שתי הגרסאות
+  ממשיכות להיבדק גם ב־Windows.
+
 ## למה `unittest`?
 
 נבחרה הספרייה המובנית של Python: היא מספקת גילוי טסטים, assertions ו־mocking
