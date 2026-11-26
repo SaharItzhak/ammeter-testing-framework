@@ -1,9 +1,10 @@
 import socket
 import threading
-import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+
+import pytest
 
 import main
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
@@ -19,18 +20,18 @@ TEST_RUNTIME_CONFIG = {
 }
 
 
-class ServerReadinessTests(unittest.TestCase):
+class TestServerReadiness:
     @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
     @patch("main.ThreadPoolExecutor")
     @patch("threading.Event.wait", return_value=False)
     def test_startup_timeout_is_reported(self, wait, executor_factory, runtime_config):
         executor = executor_factory.return_value.__enter__.return_value
         executor.submit.return_value.done.return_value = False
-        with self.assertRaisesRegex(RuntimeError, "GreenleeAmmeter did not start"):
+        with pytest.raises(RuntimeError, match="GreenleeAmmeter did not start"):
             main.main()
 
-        self.assertEqual(executor.submit.call_count, 3)
-        self.assertTrue(executor.submit.call_args.args[2].is_set())
+        assert executor.submit.call_count == 3
+        assert executor.submit.call_args.args[2].is_set()
         wait.assert_called_once_with(timeout=5)
 
     @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
@@ -46,11 +47,11 @@ class ServerReadinessTests(unittest.TestCase):
             stopped.append(threading.current_thread())
 
         start_server.side_effect = serve
-        with self.assertRaisesRegex(OSError, "request failed"):
+        with pytest.raises(OSError, match="request failed"):
             main.main()
 
-        self.assertEqual(len(stopped), 3)
-        self.assertTrue(all(not worker.is_alive() for worker in stopped))
+        assert len(stopped) == 3
+        assert all(not worker.is_alive() for worker in stopped)
 
     @patch("Ammeters.base_ammeter.socket.socket")
     def test_idle_listener_stops_and_closes_socket(self, socket_factory):
@@ -88,12 +89,12 @@ class ServerReadinessTests(unittest.TestCase):
         ready = threading.Event()
 
         def stop_after_ready():
-            self.assertTrue(ready.is_set())
+            assert ready.is_set()
             server.listen.assert_called_once_with()
             raise RuntimeError("stop server")
 
         server.accept.side_effect = stop_after_ready
-        with self.assertRaisesRegex(RuntimeError, "stop server"):
+        with pytest.raises(RuntimeError, match="stop server"):
             GreenleeAmmeter(5001).start_server(ready)
 
     @patch("Ammeters.base_ammeter.os", SimpleNamespace(name="posix"))
@@ -102,7 +103,7 @@ class ServerReadinessTests(unittest.TestCase):
         server = socket_factory.return_value.__enter__.return_value
         server.accept.side_effect = RuntimeError("stop server")
 
-        with self.assertRaisesRegex(RuntimeError, "stop server"):
+        with pytest.raises(RuntimeError, match="stop server"):
             GreenleeAmmeter(5001).start_server()
 
         server.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -113,12 +114,8 @@ class ServerReadinessTests(unittest.TestCase):
         server.bind.side_effect = OSError("address in use")
         ready = threading.Event()
 
-        with self.assertRaisesRegex(OSError, "address in use"):
+        with pytest.raises(OSError, match="address in use"):
             GreenleeAmmeter(5001).start_server(ready)
 
-        self.assertFalse(ready.is_set())
+        assert not ready.is_set()
         server.listen.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()

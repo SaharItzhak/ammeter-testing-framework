@@ -1,10 +1,8 @@
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import os
-import tempfile
-import unittest
-from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 from src.testing.history import HistoryStore, main as history_main
 from src.testing.report import generate_report, open_report
@@ -26,134 +24,146 @@ def sample_result(ammeter):
     }
 
 
-class ReportTests(unittest.TestCase):
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.database = Path(self.directory.name) / "history.sqlite3"
-        self.store = HistoryStore(self.database)
-        self.parameters = {
-            "measurements_count": 1,
-            "total_duration_seconds": 5.0,
-            "sampling_frequency_hz": 1.0,
-        }
+@pytest.fixture
+def report_context(tmp_path):
+    database = tmp_path / "history.sqlite3"
+    store = HistoryStore(database)
+    parameters = {
+        "measurements_count": 1,
+        "total_duration_seconds": 5.0,
+        "sampling_frequency_hz": 1.0,
+    }
+    return database, store, parameters
 
-    def save(self, ammeter):
-        return self.store.save(
-            sample_result(ammeter),
-            self.parameters,
-            "2026-01-01T00:00:00+00:00",
-        )
 
-    def test_empty_history_has_a_clear_dashboard_state(self):
-        report_path = generate_report(self.database)
-        report = report_path.read_text(encoding="utf-8")
+def save(store, parameters, ammeter):
+    return store.save(sample_result(ammeter), parameters, "2026-01-01T00:00:00+00:00")
 
-        self.assertEqual(report_path, self.database.with_suffix(".html"))
-        self.assertIn('<html lang="en" dir="ltr">', report)
-        self.assertIn("No history yet", report)
-        self.assertIn("python main.py", report)
-        self.assertFalse(self.database.exists())
 
-    def test_report_contains_runs_and_escapes_untrusted_history_text(self):
-        self.save('<img src=x onerror="alert(1)">')
+def test_empty_history_has_a_clear_dashboard_state(report_context):
+    database, _, _ = report_context
+    report_path = generate_report(database)
+    report = report_path.read_text(encoding="utf-8")
 
-        report = generate_report(self.database).read_text(encoding="utf-8")
+    assert report_path == database.with_suffix(".html")
+    assert '<html lang="en" dir="ltr">' in report
+    assert "No history yet" in report
+    assert "python main.py" in report
+    assert not database.exists()
 
-        self.assertIn("Ammeter test history", report)
-        self.assertNotRegex(report, r"[\u0590-\u05FF]")
-        self.assertIn("1.25 A", report)
-        self.assertIn("Sampling settings", report)
-        self.assertIn("5 s", report)
-        self.assertIn("data-mean=", report)
-        self.assertIn("&lt;img", report)
-        self.assertNotIn('<img src=x onerror="alert(1)">', report)
-        self.assertTrue(self.database.is_file())
-        self.assertEqual(len(self.store.list_runs()), 1)
 
-    def test_chart_plots_measurements_and_handles_constant_values(self):
-        result = sample_result("greenlee")
-        result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 1.25})
-        self.store.save(result, self.parameters, "2026-01-01T00:00:00+00:00")
+def test_report_contains_runs_and_escapes_untrusted_history_text(report_context):
+    database, store, parameters = report_context
+    save(store, parameters, '<img src=x onerror="alert(1)">')
 
-        report = generate_report(self.database).read_text(encoding="utf-8")
+    report = generate_report(database).read_text(encoding="utf-8")
 
-        self.assertIn("Current over elapsed time", report)
-        self.assertIn('points="85.00,90.00 460.00,90.00"', report)
-        self.assertIn("0.25 s", report)
-        self.assertIn("1.25 A", report)
-        self.assertIn('data-currents="1.25,1.25"', report)
-        self.assertIn("Reference current (A)", report)
+    assert "Ammeter test history" in report
+    assert not any("\u0590" <= character <= "\u05ff" for character in report)
+    assert "1.25 A" in report
+    assert "Sampling settings" in report
+    assert "5 s" in report
+    assert "data-mean=" in report
+    assert "&lt;img" in report
+    assert '<img src=x onerror="alert(1)">' not in report
+    assert database.is_file()
+    assert len(store.list_runs()) == 1
 
-    def test_chart_scales_varying_measurements(self):
-        result = sample_result("greenlee")
-        result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 3.25})
-        self.store.save(result, self.parameters, "2026-01-01T00:00:00+00:00")
 
-        report = generate_report(self.database).read_text(encoding="utf-8")
+def test_chart_plots_measurements_and_handles_constant_values(report_context):
+    database, store, parameters = report_context
+    result = sample_result("greenlee")
+    result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 1.25})
+    store.save(result, parameters, "2026-01-01T00:00:00+00:00")
 
-        self.assertIn('points="85.00,150.00 460.00,30.00"', report)
+    report = generate_report(database).read_text(encoding="utf-8")
 
-    def test_html_database_is_not_overwritten_by_report(self):
-        database = self.database.with_suffix(".html")
-        store = HistoryStore(database)
-        saved = store.save(sample_result("greenlee"), self.parameters, "2026-01-01T00:00:00+00:00")
-        original = database.read_bytes()
+    assert "Current over elapsed time" in report
+    assert 'points="85.00,90.00 460.00,90.00"' in report
+    assert "0.25 s" in report
+    assert "1.25 A" in report
+    assert 'data-currents="1.25,1.25"' in report
+    assert "Reference current (A)" in report
 
-        report = generate_report(database)
 
-        self.assertEqual(report.name, "history.html.report.html")
-        self.assertTrue(report.is_file())
-        self.assertEqual(database.read_bytes(), original)
-        self.assertEqual(store.get(saved["id"]), saved)
+def test_chart_scales_varying_measurements(report_context):
+    database, store, parameters = report_context
+    result = sample_result("greenlee")
+    result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 3.25})
+    store.save(result, parameters, "2026-01-01T00:00:00+00:00")
 
-    def test_report_refuses_to_overwrite_a_hard_link_to_database(self):
-        self.save("greenlee")
-        report = self.database.with_suffix(".html")
-        try:
-            os.link(self.database, report)
-        except OSError as error:
-            self.skipTest(f"Hard links unavailable: {error}")
-        original = self.database.read_bytes()
+    report = generate_report(database).read_text(encoding="utf-8")
 
-        with self.assertRaisesRegex(ValueError, "refusing to overwrite"):
-            generate_report(self.database)
-        self.assertEqual(self.database.read_bytes(), original)
-        self.assertEqual(len(self.store.list_runs()), 1)
+    assert 'points="85.00,150.00 460.00,30.00"' in report
 
-    @patch("src.testing.report.webbrowser.open", return_value=True)
-    def test_open_report_launches_local_file(self, browser_open):
-        message = open_report(self.database)
 
-        browser_open.assert_called_once_with(self.database.with_suffix(".html").resolve().as_uri())
-        self.assertIn("opened in your browser", message)
+def test_html_database_is_not_overwritten_by_report(report_context):
+    database, _, parameters = report_context
+    database = database.with_suffix(".html")
+    store = HistoryStore(database)
+    saved = store.save(sample_result("greenlee"), parameters, "2026-01-01T00:00:00+00:00")
+    original = database.read_bytes()
 
-    @patch("src.testing.report.webbrowser.open", return_value=True)
-    def test_history_report_command_opens_empty_dashboard(self, browser_open):
-        output = StringIO()
-        with patch("sys.argv", ["history", "--database", str(self.database), "report"]):
-            with redirect_stdout(output):
-                history_main()
+    report = generate_report(database)
 
-        self.assertIn("opened in your browser", output.getvalue())
-        self.assertTrue(self.database.with_suffix(".html").is_file())
-        browser_open.assert_called_once()
+    assert report.name == "history.html.report.html"
+    assert report.is_file()
+    assert database.read_bytes() == original
+    assert store.get(saved["id"]) == saved
 
-    @patch("src.testing.report.webbrowser.open", return_value=False)
-    def test_browser_unavailable_leaves_report_path(self, browser_open):
-        message = open_report(self.database)
 
-        self.assertIn(str(self.database.with_suffix(".html")), message)
-        self.assertIn("Open this file in a browser", message)
+def test_report_refuses_to_overwrite_a_hard_link_to_database(report_context):
+    database, store, parameters = report_context
+    save(store, parameters, "greenlee")
+    report = database.with_suffix(".html")
+    try:
+        os.link(database, report)
+    except OSError as error:
+        pytest.skip(f"Hard links unavailable: {error}")
+    original = database.read_bytes()
 
-    def test_corrupt_database_report_returns_a_clear_error(self):
-        self.database.write_bytes(b"not a SQLite database")
-        output = StringIO()
-        with patch("sys.argv", ["history", "--database", str(self.database), "report"]):
-            with redirect_stderr(output):
-                with self.assertRaises(SystemExit) as raised:
-                    history_main()
+    with pytest.raises(ValueError, match="refusing to overwrite"):
+        generate_report(database)
+    assert database.read_bytes() == original
+    assert len(store.list_runs()) == 1
 
-        self.assertEqual(raised.exception.code, 2)
-        self.assertIn("History error:", output.getvalue())
-        self.assertNotIn("Traceback", output.getvalue())
+
+@pytest.mark.parametrize("opens_browser", [True, False])
+def test_open_report_launches_local_file(report_context, monkeypatch, opens_browser):
+    database, _, _ = report_context
+    browser_open = lambda url: opens_browser
+    monkeypatch.setattr("src.testing.report.webbrowser.open", browser_open)
+
+    message = open_report(database)
+
+    if opens_browser:
+        assert "opened in your browser" in message
+    else:
+        assert str(database.with_suffix(".html")) in message
+        assert "Open this file in a browser" in message
+
+
+def test_history_report_command_opens_empty_dashboard(report_context, monkeypatch, capsys):
+    database, _, _ = report_context
+    monkeypatch.setattr("src.testing.report.webbrowser.open", lambda url: True)
+    monkeypatch.setattr("sys.argv", ["history", "--database", str(database), "report"])
+
+    history_main()
+    output = capsys.readouterr().out
+
+    assert "opened in your browser" in output
+    assert database.with_suffix(".html").is_file()
+
+
+def test_corrupt_database_report_returns_a_clear_error(report_context, monkeypatch, capsys):
+    database, _, _ = report_context
+    database.write_bytes(b"not a SQLite database")
+    monkeypatch.setattr("sys.argv", ["history", "--database", str(database), "report"])
+
+    with pytest.raises(SystemExit) as raised:
+        history_main()
+
+    assert raised.value.code == 2
+    output = capsys.readouterr().err
+    assert "History error:" in output
+    assert "Traceback" not in output

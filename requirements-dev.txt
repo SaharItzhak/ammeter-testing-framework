@@ -1,3 +1,4 @@
 -r requirements.txt
+pytest>=8.0,<9
 playwright>=1.40,<1.56
 greenlet==3.1.1; python_version < "3.10"
