@@ -175,4 +175,4 @@ Planned or optional work is not described as completed.
   fixed-command protocol without assuming a single TCP receive.
 - Optional Playwright development dependencies run the real report in headless
   Chromium, including reference calculations, comparison, and filtering.
-  Windows and Ubuntu CI install the browser and run these tests.
+  Windows and Ubuntu 24.04 CI install the browser and run these tests.
