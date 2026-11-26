@@ -45,6 +45,15 @@ class TestServerReadiness:
 
     @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
     @patch("src.testing.runner.ThreadPoolExecutor")
+    def test_unreachable_simulation_is_rejected_before_startup(
+        self, executor_factory, runtime_config
+    ):
+        with pytest.raises(ValueError, match="less than measurements_count"):
+            main.main(count=1, simulate_error_after=1)
+        executor_factory.assert_not_called()
+
+    @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch("src.testing.runner.ThreadPoolExecutor")
     @patch("threading.Event.wait", return_value=False)
     def test_port_conflict_names_ammeter_and_port(self, wait, executor_factory, runtime_config):
         executor = executor_factory.return_value.__enter__.return_value
@@ -55,6 +64,23 @@ class TestServerReadiness:
             RuntimeError, match="greenlee ammeter could not start on port 5001: address in use"
         ):
             main.main()
+
+    def test_occupied_port_stops_run_without_saving_history(self, tmp_path, monkeypatch):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("localhost", 0))
+            listener.listen()
+            port = listener.getsockname()[1]
+            config = {
+                **TEST_RUNTIME_CONFIG,
+                "ports": {**TEST_RUNTIME_CONFIG["ports"], "greenlee": port},
+            }
+            monkeypatch.setattr("src.testing.runner.load_runtime_config", lambda path: config)
+            database = tmp_path / "history.sqlite3"
+
+            with pytest.raises(RuntimeError, match=f"greenlee ammeter could not start on port {port}"):
+                main.main("greenlee", count=1, database=database)
+
+            assert not database.exists()
 
     @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
     @patch(
@@ -107,6 +133,27 @@ class TestServerReadiness:
         connection.settimeout.assert_called_once()
         connection.__exit__.assert_called_once()
         socket_factory.return_value.__exit__.assert_called_once()
+
+    @pytest.mark.parametrize("timeout", [False, True])
+    @patch("Ammeters.base_ammeter.socket.socket")
+    def test_invalid_command_or_timeout_is_logged(self, socket_factory, timeout, caplog):
+        server = socket_factory.return_value.__enter__.return_value
+        connection = MagicMock()
+        server.accept.return_value = (connection, ("localhost", 1234))
+        stop = threading.Event()
+
+        def receive(size):
+            stop.set()
+            if timeout:
+                raise socket.timeout()
+            return b"WRONG"
+
+        connection.recv.side_effect = receive
+        GreenleeAmmeter(5001).start_server(stop=stop)
+
+        expected = "timed out waiting for a command" if timeout else "invalid or incomplete command"
+        assert "GreenleeAmmeter on port 5001" in caplog.text
+        assert expected in caplog.text
 
     @patch("Ammeters.base_ammeter.socket.socket")
     def test_ready_is_set_after_listening(self, socket_factory):

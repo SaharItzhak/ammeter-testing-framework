@@ -150,6 +150,21 @@ class TestSampling:
         assert len(partial["measurements"]) == 1
         assert "Simulated connection failure after 1 readings" in partial["error"]
 
+    @pytest.mark.parametrize("after", [3, 4])
+    def test_simulated_error_rejects_unreachable_count(self, after):
+        with pytest.raises(ValueError, match="less than measurements_count"):
+            self.framework.run_test("greenlee", 3, 5, 2, simulate_error_after=after)
+        self.request.assert_not_called()
+
+    def test_simulated_error_warns_if_duration_ends_first(self, caplog):
+        with patch("src.testing.test_framework.time", self.clock):
+            result = self.framework.run_test(
+                "greenlee", 3, 1, 1, simulate_error_after=1
+            )
+        assert result["stop_reason"] == "duration"
+        assert len(result["measurements"]) == 1
+        assert "Simulation did not trigger before the test ended" in caplog.text
+
     def test_late_response_preserves_only_earlier_measurements(self):
         def request(*args, **kwargs):
             if self.request.call_count == 2:

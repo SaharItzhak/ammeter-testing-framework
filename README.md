@@ -30,6 +30,8 @@ override the defaults in `config/config.yaml`; invalid sampling values are
 rejected before any server starts. Configuration includes each meter's port
 and command. The default configuration and history database resolve relative
 to the repository, so `main.py` can be launched from another working directory.
+If a selected server cannot start (for example, its port is busy), the whole
+run stops before sampling and reports the affected meter and port.
 
 To exercise the failure path after one successful reading:
 
@@ -39,6 +41,8 @@ python main.py --ammeter greenlee --simulate-error-after 1
 
 The command exits with an error and saves the partial readings as a failed run.
 This option is for testing error handling; it does not change normal runs.
+`N` must be less than the measurement count. If the time limit is reached
+before the failure can be injected, a warning is printed instead.
 
 ## Results
 

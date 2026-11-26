@@ -9,8 +9,8 @@
 - Ports, protocol commands, sampling defaults, and the history location are
   configurable in `config/config.yaml`. The default config and history paths
   are anchored to the repository, not the caller's working directory.
-- The unused logger was removed. Console output is reserved for run summaries
-  and errors; emulator internals do not print per-request diagnostics.
+- The unused logger was removed. Python's standard logging reports invalid
+  commands and command timeouts without creating log files or logging readings.
 
 ## Fixes to the supplied infrastructure
 
@@ -21,6 +21,16 @@
   validated number, handles fragmented TCP responses, and reports timeouts.
 - Emulator servers now signal readiness and stop cleanly; they also assemble
   fragmented TCP commands rather than assuming one receive is enough.
+- The original README listed ports 5000–5002 instead of the code's 5001–5003
+  and omitted `-current` from the CIRCUTOR command; the documented values now
+  match the emulators.
+- The original `test_framework.py` used `Dict` without importing it and had
+  no test implementation. It was replaced with the sampling framework.
+- The original sampling configuration contained `NULL` values; it now has
+  usable defaults. An `Ω` character in Greenlee's print could fail on consoles
+  that cannot encode it; the per-reading print was removed.
+- Unused NumPy, SciPy, pandas, matplotlib, and seaborn dependencies were
+  removed; PyYAML is the only external runtime dependency.
 
 ## Sampling and error handling
 
@@ -31,10 +41,13 @@
   acquisition accuracy.
 - `--simulate-error-after N` injects a connection failure after N successful
   readings. It exercises the same failure path as a real request error.
+  Values at or above the requested count are rejected; an early duration
+  limit produces a warning if the simulation did not run.
 - Partial results from a failed run are saved when possible; the CLI still
   exits unsuccessfully. Failures before the first reading create no run.
 - A startup error identifies the meter and port. Worker threads are stopped
-  and joined even if startup or measurement fails.
+  and joined even if startup or measurement fails. Startup is fail-fast: if
+  any selected server fails, no selected meter is sampled.
 
 ## Results and analysis
 

@@ -46,11 +46,13 @@ def validate_sampling_options(
     return interval
 
 
-def validate_simulate_error_after(value: Any) -> None:
+def validate_simulate_error_after(value: Any, count: int) -> None:
     if value is not None and (
         isinstance(value, bool) or not isinstance(value, int) or value <= 0
     ):
         raise ValueError("simulate_error_after must be a positive integer")
+    if value is not None and value >= count:
+        raise ValueError("simulate_error_after must be less than measurements_count")
 
 
 def load_runtime_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:

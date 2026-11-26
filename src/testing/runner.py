@@ -43,7 +43,7 @@ def run(
     if ammeter_type != "all" and ammeter_type not in AMMETER_TYPES:
         raise ValueError(f"Unknown ammeter: {ammeter_type}")
     validate_sampling_options(count, duration, frequency)
-    validate_simulate_error_after(simulate_error_after)
+    validate_simulate_error_after(simulate_error_after, count)
 
     meter_types = {
         "greenlee": GreenleeAmmeter,

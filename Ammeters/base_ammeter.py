@@ -2,6 +2,7 @@ import socket
 import time
 import random
 import os
+import logging
 from abc import ABC, abstractmethod
 from threading import Event
 from typing import Optional
@@ -49,11 +50,20 @@ class AmmeterEmulatorBase(ABC):
                             if not command.startswith(data):
                                 break
                     except socket.timeout:
+                        logging.getLogger(__name__).warning(
+                            "%s on port %s timed out waiting for a command",
+                            type(self).__name__, self.port,
+                        )
                         continue
                     if data == command:
                         # Call the specific measure_current() method defined in subclasses
                         current = self.measure_current()
                         conn.sendall(str(current).encode('utf-8'))
+                    elif data:
+                        logging.getLogger(__name__).warning(
+                            "%s on port %s received an invalid or incomplete command",
+                            type(self).__name__, self.port,
+                        )
 
     @property
     @abstractmethod

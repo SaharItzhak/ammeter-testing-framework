@@ -1,3 +1,4 @@
+import logging
 import statistics
 import time
 from collections.abc import Callable, Mapping
@@ -86,7 +87,7 @@ class AmmeterTestFramework:
         interval = validate_sampling_options(
             measurements_count, total_duration_seconds, sampling_frequency_hz
         )
-        validate_simulate_error_after(simulate_error_after)
+        validate_simulate_error_after(simulate_error_after, measurements_count)
 
         ammeter = self.ammeters[ammeter_type]
         start = time.monotonic()
@@ -144,4 +145,10 @@ class AmmeterTestFramework:
             measurements.append({"elapsed_seconds": now - start, "current_amperes": current})
             next_sample = max(next_sample + interval, now + interval)
 
+        if simulate_error_after is not None:
+            logging.getLogger(__name__).warning(
+                "Simulation did not trigger before the test ended "
+                "(%s readings collected; failure requested after %s)",
+                len(measurements), simulate_error_after,
+            )
         return result("count" if len(measurements) == measurements_count else "duration")
