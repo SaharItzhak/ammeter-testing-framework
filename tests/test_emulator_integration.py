@@ -28,6 +28,8 @@ class EmulatorIntegrationTests(unittest.TestCase):
                     socket=create_socket,
                     AF_INET=socket.AF_INET,
                     SOCK_STREAM=socket.SOCK_STREAM,
+                    SOL_SOCKET=socket.SOL_SOCKET,
+                    SO_REUSEADDR=socket.SO_REUSEADDR,
                     timeout=socket.timeout,
                 )
                 ready = threading.Event()

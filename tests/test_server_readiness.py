@@ -1,6 +1,7 @@
 import socket
 import threading
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
@@ -94,6 +95,17 @@ class ServerReadinessTests(unittest.TestCase):
         server.accept.side_effect = stop_after_ready
         with self.assertRaisesRegex(RuntimeError, "stop server"):
             GreenleeAmmeter(5001).start_server(ready)
+
+    @patch("Ammeters.base_ammeter.os", SimpleNamespace(name="posix"))
+    @patch("Ammeters.base_ammeter.socket.socket")
+    def test_unix_listener_allows_immediate_restart(self, socket_factory):
+        server = socket_factory.return_value.__enter__.return_value
+        server.accept.side_effect = RuntimeError("stop server")
+
+        with self.assertRaisesRegex(RuntimeError, "stop server"):
+            GreenleeAmmeter(5001).start_server()
+
+        server.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     @patch("Ammeters.base_ammeter.socket.socket")
     def test_bind_failure_does_not_signal_readiness(self, socket_factory):
