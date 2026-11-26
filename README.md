@@ -50,14 +50,16 @@ configuration value for one run; `--config path` selects another YAML file.
 
 `main.py` starts the selected emulators, waits until each is listening (up to
 five seconds per emulator), and samples each one before exiting. By default it
-requests one measurement from each.
+requests up to five measurements from each at 5 Hz, within five seconds per
+ammeter.
 Servers are stopped and their worker threads are joined on exit, including when
 a request fails. Socket timeouts prevent idle clients from blocking shutdown.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
 terminals that cannot display the ohm symbol.
-After a successful run, the project creates `results/history.html` and opens
-the visual report in your browser. The report stays local and is excluded from
-Git.
+After a successful run, the project creates `results/history.html` and prints
+its path without opening a browser. Use `python main.py --open-report` to open
+it automatically, or run `python -m src.testing.history report` later. The
+report stays local and is excluded from Git.
 
 If a configured port is already in use, change its value in
 `config/config.yaml` before running the emulators.
@@ -100,13 +102,16 @@ ammeter is sampled sequentially with its own duration limit. Sampling stops at
 the requested count or when the next measurement cannot start within the
 duration. A request that times out or exceeds the duration raises an error
 instead of returning a partial success.
+Scheduling uses a monotonic clock, but OS scheduling and network latency can
+introduce jitter; this is not a real-time timing guarantee.
 The framework returns measurement values, elapsed times, and mean, median,
 minimum, maximum, and population standard deviation in amperes. For a single
 measurement the population standard deviation is zero; if there are no
 measurements, the statistics are `None`. The command prints the measurements,
 count, stop reason, and statistics.
 
-Example output from one successful run using all three emulators:
+Example output from one successful run using all three emulators with one
+measurement per ammeter:
 
 | Ammeter | Measurements | Mean current |
 | --- | ---: | ---: |
@@ -135,9 +140,11 @@ python -m src.testing.history compare FIRST_RUN_ID SECOND_RUN_ID
 ```
 
 `report` refreshes and opens the complete visual history without starting a new
-measurement. It includes search, ammeter filtering, per-run details, and
-comparison of two runs. For a custom database, the report is saved beside that
-database with an `.html` extension. `list`, `show`, and `compare` remain
+measurement. It includes search, ammeter filtering, per-run details, a plot of
+current over time, and comparison of two runs. For a custom database, the
+report is saved beside that database with an `.html` extension. If the
+database itself ends in `.html`, the report uses `.html.report.html` instead;
+an existing hard link to the database is never overwritten. `list`, `show`, and `compare` remain
 available as terminal alternatives. If no run has been saved yet, the report
 explains how to start; terminal commands give clear messages for empty history
 or missing IDs. A sampling attempt that produces no measurements fails
@@ -148,6 +155,15 @@ shows both records and statistical differences (second minus first); those
 differences alone do not establish device accuracy. A failed measurement is
 not saved as a successful run. When sampling multiple ammeters, earlier
 completed runs remain saved if a later run fails.
+
+For a run measured against a known constant reference current under the same
+conditions, expand its details and enter that reference to calculate mean
+signed error, mean absolute error, and root mean square error. The entered
+reference is not saved. The supplied emulators generate independent random
+values and do not provide a known reference, so comparing their results does
+not identify the most accurate or reliable meter. A defensible accuracy
+assessment requires controlled common inputs, traceable reference measurements,
+and appropriate uncertainty analysis.
 
 The example can also be run from the project root using:
 
@@ -160,3 +176,8 @@ Run the test suite with:
 ```sh
 python -m unittest discover -s tests -v
 ```
+
+The test suite reports pass or fail in the terminal. It uses temporary data
+and does not open a browser or create a persistent HTML test report. The HTML
+history dashboard contains measurement results from `python main.py`; it is
+not a report of the automated test suite.

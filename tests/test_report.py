@@ -1,5 +1,6 @@
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,6 +69,56 @@ class ReportTests(unittest.TestCase):
         self.assertIn("&lt;img", report)
         self.assertNotIn('<img src=x onerror="alert(1)">', report)
         self.assertTrue(self.database.is_file())
+        self.assertEqual(len(self.store.list_runs()), 1)
+
+    def test_chart_plots_measurements_and_handles_constant_values(self):
+        result = sample_result("greenlee")
+        result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 1.25})
+        self.store.save(result, self.parameters, "2026-01-01T00:00:00+00:00")
+
+        report = generate_report(self.database).read_text(encoding="utf-8")
+
+        self.assertIn("Current over elapsed time", report)
+        self.assertIn('points="85.00,90.00 460.00,90.00"', report)
+        self.assertIn("0.25 s", report)
+        self.assertIn("1.25 A", report)
+        self.assertIn('data-currents="1.25,1.25"', report)
+        self.assertIn("Reference current (A)", report)
+
+    def test_chart_scales_varying_measurements(self):
+        result = sample_result("greenlee")
+        result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 3.25})
+        self.store.save(result, self.parameters, "2026-01-01T00:00:00+00:00")
+
+        report = generate_report(self.database).read_text(encoding="utf-8")
+
+        self.assertIn('points="85.00,150.00 460.00,30.00"', report)
+
+    def test_html_database_is_not_overwritten_by_report(self):
+        database = self.database.with_suffix(".html")
+        store = HistoryStore(database)
+        saved = store.save(sample_result("greenlee"), self.parameters, "2026-01-01T00:00:00+00:00")
+        original = database.read_bytes()
+
+        report = generate_report(database)
+
+        self.assertEqual(report.name, "history.html.report.html")
+        self.assertTrue(report.is_file())
+        self.assertEqual(database.read_bytes(), original)
+        self.assertEqual(store.get(saved["id"]), saved)
+
+    def test_report_refuses_to_overwrite_a_hard_link_to_database(self):
+        self.save("greenlee")
+        report = self.database.with_suffix(".html")
+        try:
+            os.link(self.database, report)
+        except OSError as error:
+            self.skipTest(f"Hard links unavailable: {error}")
+        original = self.database.read_bytes()
+
+        with self.assertRaisesRegex(ValueError, "refusing to overwrite"):
+            generate_report(self.database)
+        self.assertEqual(self.database.read_bytes(), original)
         self.assertEqual(len(self.store.list_runs()), 1)
 
     @patch("src.testing.report.webbrowser.open", return_value=True)

@@ -55,6 +55,60 @@ def _statistics_rows(record: HistoryRecord) -> str:
     )
 
 
+def _measurement_chart(record: HistoryRecord) -> str:
+    measurements = record["result"]["measurements"]
+    if not measurements:
+        return ""
+    times = [measurement["elapsed_seconds"] for measurement in measurements]
+    currents = [measurement["current_amperes"] for measurement in measurements]
+    min_time, max_time = min(times), max(times)
+    min_current, max_current = min(currents), max(currents)
+
+    def position(value: float, lower: float, upper: float) -> float:
+        if lower == upper:
+            return 0.5
+        scale = max(abs(lower), abs(upper))
+        return (value / scale - lower / scale) / (upper / scale - lower / scale)
+
+    points = [
+        (85 + 375 * position(t, min_time, max_time),
+         150 - 120 * position(current, min_current, max_current))
+        for t, current in zip(times, currents)
+    ]
+    coordinates = " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+    dots = "".join(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="3" />' for x, y in points)
+    return (
+        '<figure class="measurement-chart"><figcaption>Current over elapsed time</figcaption>'
+        '<svg viewBox="0 0 480 200" role="img" aria-label="Current in amperes over elapsed time in seconds. '
+        'Exact values are listed in the measurements table.">'
+        '<path d="M85 20 V150 H460" fill="none" stroke="#64748b" />'
+        f'<polyline points="{coordinates}" fill="none" stroke="#175cd3" stroke-width="2" />'
+        f'<g fill="#175cd3">{dots}</g>'
+        f'<text x="80" y="24" text-anchor="end">{_escape(_format_number(max_current))} A</text>'
+        f'<text x="80" y="154" text-anchor="end">{_escape(_format_number(min_current))} A</text>'
+        f'<text x="85" y="173">{_escape(_format_number(min_time))} s</text>'
+        f'<text x="460" y="173" text-anchor="end">{_escape(_format_number(max_time))} s</text>'
+        '</svg></figure>'
+    )
+
+
+def _reference_assessment(record: HistoryRecord) -> str:
+    measurements = record["result"]["measurements"]
+    if not measurements:
+        return ""
+    currents = ",".join(str(item["current_amperes"]) for item in measurements)
+    return (
+        f'<div class="reference-assessment" data-currents="{_escape(currents)}">'
+        '<h4>Assess against a reference</h4>'
+        '<p class="muted">Use a known constant current measured under the same conditions. '
+        'The reference is not saved; emulator values do not supply a known reference.</p>'
+        '<label>Reference current (A)<input class="reference-current" type="number" step="any" '
+        'placeholder="Enter a known current"></label>'
+        '<button class="assess-reference" type="button">Assess measurements</button>'
+        '<p class="reference-result" aria-live="polite"></p></div>'
+    )
+
+
 def _run_row(record: HistoryRecord) -> str:
     result = record["result"]
     parameters = record["parameters"]
@@ -72,6 +126,8 @@ def _run_row(record: HistoryRecord) -> str:
         f'{parameters["total_duration_seconds"]:g} s · {parameters["sampling_frequency_hz"]:g} Hz</strong></div>'
         "</div>"
         f'<dl class="stats">{_statistics_rows(record)}</dl>'
+        f'{_measurement_chart(record)}'
+        f'{_reference_assessment(record)}'
         '<h4>Measurements</h4><div class="table-scroll"><table>'
         "<thead><tr><th>#</th><th>Time</th><th>Current</th></tr></thead>"
         f"<tbody>{_measurement_rows(record)}</tbody></table></div>"
@@ -191,6 +247,12 @@ def _render_html(records: list[HistoryRecord]) -> str:
     .run-meta div {{ display: grid; gap: 4px; }}
     .run-meta span {{ color: var(--muted); font-size: .84rem; }}
     .run-meta strong {{ font-weight: 650; }}
+    .measurement-chart {{ margin: 18px 0; min-width: 280px; }}
+    .measurement-chart figcaption {{ font-weight: 650; }}
+    .measurement-chart svg {{ width: 100%; max-width: 520px; height: auto; overflow: visible; }}
+    .measurement-chart text {{ fill: var(--muted); font-size: 10px; }}
+    .reference-assessment {{ margin: 18px 0; }}
+    .reference-assessment button {{ margin-top: 10px; }}
     h4 {{ margin: 14px 0 8px; }}
     .empty-cell {{ color: var(--muted); }}
     .empty-state {{ padding: 46px 16px 30px; text-align: center; }}
@@ -283,6 +345,35 @@ def _render_html(records: list[HistoryRecord]) -> str:
     search.addEventListener("input", filterRuns);
     filter.addEventListener("change", filterRuns);
 
+    document.querySelectorAll(".reference-assessment").forEach((section) => {{
+      section.querySelector(".assess-reference").addEventListener("click", () => {{
+        const input = section.querySelector(".reference-current").value;
+        const reference = Number(input);
+        const output = section.querySelector(".reference-result");
+        if (input === "" || !Number.isFinite(reference)) {{
+          output.textContent = "Enter a finite reference current.";
+          return;
+        }}
+        const errors = section.dataset.currents.split(",").map((value) => Number(value) - reference);
+        if (!errors.every(Number.isFinite)) {{
+          output.textContent = "The difference is too large to calculate.";
+          return;
+        }}
+        const scale = errors.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+        const average = errors.reduce((sum, value) => sum + value / errors.length, 0);
+        const absolute = errors.reduce((sum, value) => sum + Math.abs(value) / errors.length, 0);
+        const rms = scale === 0 ? 0 : scale * Math.sqrt(
+          errors.reduce((sum, value) => sum + (value / scale) ** 2 / errors.length, 0));
+        if (![average, absolute, rms].every(Number.isFinite)) {{
+          output.textContent = "The error is too large to calculate.";
+          return;
+        }}
+        const format = (value) => value.toLocaleString("en-US", {{maximumSignificantDigits: 6}});
+        output.textContent = `Mean error (measured − reference): ${{format(average)}} A; `
+          + `mean absolute error: ${{format(absolute)}} A; RMSE: ${{format(rms)}} A.`;
+      }});
+    }});
+
     const labels = {{"mean": "Mean", "median": "Median", "standard-deviation": "Standard deviation", "minimum": "Minimum", "maximum": "Maximum"}};
     document.getElementById("compareButton").addEventListener("click", () => {{
       const first = document.getElementById("firstRun");
@@ -355,7 +446,12 @@ def generate_report(database_path: Path) -> Path:
     records: list[HistoryRecord] = [
         store.get(run["id"]) for run in store.list_runs()
     ]
-    report_path = Path(database_path).with_suffix(".html")
+    database_path = Path(database_path)
+    report_path = database_path.with_suffix(".html")
+    if report_path.resolve() == database_path.resolve():
+        report_path = database_path.with_name(database_path.name + ".report.html")
+    if report_path.exists() and database_path.exists() and report_path.samefile(database_path):
+        raise ValueError("Report path refers to the history database; refusing to overwrite it")
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(_render_html(records), encoding="utf-8")
     return report_path

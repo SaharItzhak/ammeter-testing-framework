@@ -39,7 +39,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_default_configuration_loads(self):
         config = load_runtime_config(DEFAULT_CONFIG)
 
-        self.assertEqual(config["sampling"]["measurements_count"], 1)
+        self.assertEqual(config["sampling"]["measurements_count"], 5)
         self.assertEqual(config["ports"], {"greenlee": 5001, "entes": 5002, "circutor": 5003})
         self.assertEqual(config["history_database"], Path("results/history.sqlite3"))
 
@@ -114,18 +114,29 @@ class RuntimeConfigTests(unittest.TestCase):
         self.config["result_management"]["history_database"] = str(database)
         self.path.write_text(yaml.safe_dump(self.config), encoding="utf-8")
 
-        completed = subprocess.run(
-            [sys.executable, "-B", "main.py", "--config", str(self.path)],
-            capture_output=True,
-            text=True,
-            timeout=15,
+        run_cli = (
+            "import runpy, sys; from unittest.mock import patch\n"
+            "with patch('webbrowser.open', return_value=True) as browser_open:\n"
+            "    runpy.run_path('main.py', run_name='__main__')\n"
+            "    if '--open-report' in sys.argv:\n"
+            "        browser_open.assert_called_once()\n"
+            "    else:\n"
+            "        browser_open.assert_not_called()\n"
         )
-
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        for name in ("greenlee", "entes", "circutor"):
-            self.assertRegex(completed.stdout, rf"{name}: 2 measurements \(count\)")
+        for extra in ([], ["--open-report"]):
+            with self.subTest(extra=extra):
+                completed = subprocess.run(
+                    [sys.executable, "-B", "-c", run_cli, "--config", str(self.path), *extra],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertTrue(database.with_suffix(".html").is_file())
+                for name in ("greenlee", "entes", "circutor"):
+                    self.assertRegex(completed.stdout, rf"{name}: 2 measurements \(count\)")
         records = [HistoryStore(database).get(run["id"]) for run in HistoryStore(database).list_runs()]
-        self.assertEqual(len(records), 3)
+        self.assertEqual(len(records), 6)
         self.assertTrue(all(record["parameters"]["measurements_count"] == 2 for record in records))
 
 

@@ -12,7 +12,7 @@ from Ammeters.Entes_Ammeter import EntesAmmeter
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 from Ammeters.client import request_current_from_ammeter
 from src.testing.history import DEFAULT_DATABASE, HistoryStore
-from src.testing.report import open_report
+from src.testing.report import generate_report, open_report
 from src.testing.test_framework import AmmeterTestFramework
 from src.utils.config import load_config
 
@@ -153,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--duration", type=float, default=None, help="override configured duration in seconds")
     parser.add_argument("--frequency", type=float, default=None, help="override configured frequency in Hz")
     parser.add_argument("--database", type=Path, default=None, help="override configured history database")
+    parser.add_argument("--open-report", action="store_true", help="open the history report after sampling")
     args = parser.parse_args()
     try:
         database = main(
@@ -163,6 +164,10 @@ if __name__ == "__main__":
             args.database,
             args.config,
         )
-        print(open_report(database))
+        if args.open_report:
+            print(open_report(database))
+        else:
+            print(f"History report saved to {generate_report(database)}. "
+                  "Open this file in a browser to view it.")
     except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
         parser.exit(1, f"Run failed: {error}\n")

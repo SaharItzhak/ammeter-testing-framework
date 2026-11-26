@@ -143,3 +143,17 @@ Planned or optional work is not described as completed.
   service. Its HTML escapes values read from the database.
 - Comparisons show numeric differences only. Without a known reference value,
   they do not determine which ammeter is more accurate.
+
+## Safer and more informative reports
+
+- The default run requests five readings per ammeter at 5 Hz to make the
+  statistics and time plot more informative. Timing uses a monotonic clock,
+  but OS scheduling and request latency do not provide real-time guarantees.
+- Runs generate the local report without opening a browser unless
+  `--open-report` is requested. Automated tests mock browser launching.
+- Report generation avoids overwriting the SQLite database, including when
+  the database ends in `.html` or the report path is a hard link to it.
+- The report plots current against elapsed time and can calculate errors
+  against a user-supplied constant reference. This does not establish accuracy
+  for the supplied independent random emulators without controlled inputs and
+  a traceable reference.
