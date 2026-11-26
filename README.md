@@ -188,21 +188,17 @@ python -m examples.run_tests
 Run the test suite with:
 
 ```sh
-python -m unittest discover -s tests -v
+python -m pip install -r requirements-dev.txt
+python -m pytest
 ```
 
-The test suite reports pass or fail in the terminal. It uses temporary data
+The pytest suite reports pass or fail in the terminal. It uses temporary data
 and does not open a visible browser or create a persistent HTML test report.
 The HTML history dashboard contains measurement results from `python main.py`;
 it is not a report of the automated test suite.
 
-The browser tests require Playwright and its headless Chromium. Install these
-test-only dependencies before running the suite; otherwise the browser tests
-are explicitly skipped:
-
-```sh
-python -m pip install -r requirements-dev.txt
-```
+The browser tests require Playwright and its headless Chromium. The other
+pytest dependencies are also listed in `requirements-dev.txt`.
 
 In Windows PowerShell, install Chromium while preserving other Playwright
 browser caches:
