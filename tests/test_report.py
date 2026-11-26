@@ -62,6 +62,8 @@ def test_report_contains_runs_and_escapes_untrusted_history_text(report_context)
     assert not any("\u0590" <= character <= "\u05ff" for character in report)
     assert "1.25 A" in report
     assert "Sampling settings" in report
+    assert "Coefficient of variation" in report
+    assert "not greater accuracy" in report
     assert "5 s" in report
     assert "data-mean=" in report
     assert "&lt;img" in report

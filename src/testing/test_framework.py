@@ -1,4 +1,3 @@
-import math
 import statistics
 import time
 from collections.abc import Callable, Mapping
@@ -6,6 +5,7 @@ from typing import Optional, TypedDict
 
 from Ammeters.base_ammeter import AmmeterEmulatorBase
 from Ammeters.client import request_current_from_ammeter
+from src.testing.config import validate_sampling_options, validate_simulate_error_after
 
 
 class Measurement(TypedDict):
@@ -37,6 +37,14 @@ class SamplingFailure(RuntimeError):
     def __init__(self, message: str, partial_result: TestResult):
         super().__init__(message)
         self.partial_result = partial_result
+
+
+def coefficient_of_variation(
+    summary: Optional[MeasurementStatistics],
+) -> Optional[float]:
+    if summary is None or summary["mean"] == 0:
+        return None
+    return summary["standard_deviation"] / abs(summary["mean"]) * 100
 
 
 def timing_summary(measurements: list[Measurement], frequency: float) -> Optional[dict[str, float]]:
@@ -71,30 +79,14 @@ class AmmeterTestFramework:
         measurements_count: int,
         total_duration_seconds: float,
         sampling_frequency_hz: float,
+        simulate_error_after: Optional[int] = None,
     ) -> TestResult:
         if ammeter_type not in self.ammeters:
             raise ValueError(f"Unknown ammeter: {ammeter_type}")
-        if (
-            isinstance(measurements_count, bool)
-            or not isinstance(measurements_count, int)
-            or measurements_count <= 0
-        ):
-            raise ValueError("measurements_count must be a positive integer")
-        for name, value in (
-            ("total_duration_seconds", total_duration_seconds),
-            ("sampling_frequency_hz", sampling_frequency_hz),
-        ):
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(f"{name} must be a positive finite number")
-            try:
-                valid = math.isfinite(value) and value > 0
-            except OverflowError:
-                valid = False
-            if not valid:
-                raise ValueError(f"{name} must be a positive finite number")
-        interval = 1 / sampling_frequency_hz
-        if not math.isfinite(interval):
-            raise ValueError("sampling_frequency_hz is too small")
+        interval = validate_sampling_options(
+            measurements_count, total_duration_seconds, sampling_frequency_hz
+        )
+        validate_simulate_error_after(simulate_error_after)
 
         ammeter = self.ammeters[ammeter_type]
         start = time.monotonic()
@@ -131,6 +123,13 @@ class AmmeterTestFramework:
             if now >= deadline:
                 break
             try:
+                if (
+                    simulate_error_after is not None
+                    and len(measurements) >= simulate_error_after
+                ):
+                    raise ConnectionError(
+                        f"Simulated connection failure after {simulate_error_after} readings"
+                    )
                 current = self.request(
                     ammeter.port, ammeter.get_current_command, timeout=deadline - now
                 )

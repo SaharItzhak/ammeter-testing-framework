@@ -3,7 +3,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.testing.test_framework import AmmeterTestFramework, SamplingFailure, timing_summary
+from src.testing.test_framework import (
+    AmmeterTestFramework,
+    SamplingFailure,
+    coefficient_of_variation,
+    timing_summary,
+)
 
 
 class FakeClock:
@@ -55,6 +60,9 @@ class TestSampling:
         assert result["statistics"]["standard_deviation"] == pytest.approx(5 ** 0.5)
         assert result["statistics"]["minimum"] == 1.0
         assert result["statistics"]["maximum"] == 7.0
+        assert coefficient_of_variation(result["statistics"]) == pytest.approx(
+            (5 ** 0.5) / 4 * 100
+        )
 
     def test_statistics_for_odd_number_of_measurements(self):
         self.request.side_effect = [1.0, 3.0, 8.0]
@@ -70,6 +78,18 @@ class TestSampling:
             result = self.framework.run_test("greenlee", 1, 5, 2)
 
         assert result["statistics"]["standard_deviation"] == 0.0
+        assert coefficient_of_variation(result["statistics"]) == 0.0
+
+    def test_coefficient_of_variation_is_undefined_for_zero_mean(self):
+        summary = {
+            "mean": 0.0,
+            "median": 0.0,
+            "standard_deviation": 0.0,
+            "minimum": 0.0,
+            "maximum": 0.0,
+        }
+
+        assert coefficient_of_variation(summary) is None
 
     def test_no_measurements_have_no_statistics(self):
         clock = SimpleNamespace(monotonic=Mock(side_effect=[0.0, 2.0, 2.0]))
@@ -117,6 +137,18 @@ class TestSampling:
         assert [m["current_amperes"] for m in partial["measurements"]] == [1.0, 3.0]
         assert partial["statistics"]["mean"] == 2.0
         assert isinstance(raised.value.__cause__, TimeoutError)
+
+    def test_simulated_error_preserves_partial_measurements(self):
+        with patch("src.testing.test_framework.time", self.clock):
+            with pytest.raises(SamplingFailure, match="Simulated connection failure") as raised:
+                self.framework.run_test(
+                    "greenlee", 3, 5, 2, simulate_error_after=1
+                )
+
+        partial = raised.value.partial_result
+        assert partial["stop_reason"] == "error"
+        assert len(partial["measurements"]) == 1
+        assert "Simulated connection failure after 1 readings" in partial["error"]
 
     def test_late_response_preserves_only_earlier_measurements(self):
         def request(*args, **kwargs):

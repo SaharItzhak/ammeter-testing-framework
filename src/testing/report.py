@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.testing.history import format_timing
+from src.testing.test_framework import coefficient_of_variation
 
 if TYPE_CHECKING:
     from src.testing.history import HistoryRecord
@@ -50,10 +51,20 @@ def _statistics_rows(record: HistoryRecord) -> str:
     statistics = record["result"]["statistics"]
     if statistics is None:
         return '<p class="muted">No statistics are available for this run.</p>'
-    return "".join(
+    rows = "".join(
         f"<div><dt>{label}</dt><dd dir=\"ltr\">"
         f"{_format_number(statistics[key])} A</dd></div>"
         for key, label in STATISTICS
+    )
+    variation = coefficient_of_variation(statistics)
+    value = (
+        "unavailable (mean is zero)"
+        if variation is None
+        else f"{_format_number(variation)}%"
+    )
+    return (
+        f"{rows}<div><dt>Coefficient of variation</dt>"
+        f"<dd dir=\"ltr\">{value}</dd></div>"
     )
 
 
@@ -118,6 +129,12 @@ def _run_row(record: HistoryRecord) -> str:
     ammeter = result["ammeter"]
     statistics = result["statistics"]
     mean = "" if statistics is None else _format_number(statistics["mean"])
+    consistency_note = (
+        '<p class="muted">Lower variation means more consistent readings, '
+        'not greater accuracy.</p>'
+        if statistics is not None
+        else ""
+    )
     status = "Failed (partial)" if result["stop_reason"] == "error" else "Completed"
     failure = (
         f'<p class="failure">Failed: {_escape(result["error"])}. Measurements below are partial.</p>'
@@ -134,6 +151,7 @@ def _run_row(record: HistoryRecord) -> str:
         "</div>"
         f'{failure}<p class="muted">{_escape(format_timing(result, parameters["sampling_frequency_hz"]))}</p>'
         f'<dl class="stats">{_statistics_rows(record)}</dl>'
+        f'{consistency_note}'
         f'{_measurement_chart(record)}'
         f'{_reference_assessment(record)}'
         '<h4>Measurements</h4><div class="table-scroll"><table>'

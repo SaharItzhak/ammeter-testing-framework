@@ -7,16 +7,13 @@ testing:
 ammeters:
   greenlee:
     port: 5001
+    command: MEASURE_GREENLEE -get_measurement
   entes:
     port: 5002
+    command: MEASURE_ENTES -get_data
   circutor:
     port: 5003
-
-analysis:
-  statistical_metrics:
-  visualization:
-    enabled: true
-    plot_types:
+    command: MEASURE_CIRCUTOR -get_measurement -current
 
 result_management:
   history_database: results/history.sqlite3

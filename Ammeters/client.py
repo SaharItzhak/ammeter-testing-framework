@@ -37,6 +37,5 @@ def request_current_from_ammeter(port: int, command: bytes, timeout: float = 5) 
         raise ValueError(f"Invalid measurement received from port {port}") from error
     if not math.isfinite(measurement):
         raise ValueError(f"Non-finite measurement received from port {port}")
-    print(f"Received current measurement from port {port}: {measurement} A")
     return measurement
 

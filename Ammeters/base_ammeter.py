@@ -9,8 +9,9 @@ from typing import Optional
 NotImplementedErrorMsg = "Subclasses must implement this property."
 
 class AmmeterEmulatorBase(ABC):
-    def __init__(self, port: int):
+    def __init__(self, port: int, command: Optional[bytes] = None):
         self.port = port
+        self._command = command
         random.seed(time.time())  # Seed the random number generator for each instance
 
     def start_server(self, ready: Optional[Event] = None, stop: Optional[Event] = None):
@@ -24,16 +25,14 @@ class AmmeterEmulatorBase(ABC):
             s.bind(('localhost', self.port))
             s.listen()
             s.settimeout(0.2)
-            print(f"{self.__class__.__name__} is running on port {self.port}")
             if ready is not None:
                 ready.set()
             while stop is None or not stop.is_set():
                 try:
-                    conn, addr = s.accept()
+                    conn, _ = s.accept()
                 except socket.timeout:
                     continue
                 with conn:
-                    print(f"Connected by {addr}")
                     command = self.get_current_command
                     data = bytearray()
                     deadline = time.monotonic() + 1
@@ -50,14 +49,11 @@ class AmmeterEmulatorBase(ABC):
                             if not command.startswith(data):
                                 break
                     except socket.timeout:
-                        print(f"Client {addr} timed out waiting for a command")
                         continue
                     if data == command:
                         # Call the specific measure_current() method defined in subclasses
                         current = self.measure_current()
                         conn.sendall(str(current).encode('utf-8'))
-                    else:
-                        print(f"Client {addr} sent an incomplete or invalid command")
 
     @property
     @abstractmethod

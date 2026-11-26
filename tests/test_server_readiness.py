@@ -16,26 +16,51 @@ TEST_RUNTIME_CONFIG = {
         "sampling_frequency_hz": 1.0,
     },
     "ports": {"greenlee": 5001, "entes": 5002, "circutor": 5003},
+    "commands": {"greenlee": None, "entes": None, "circutor": None},
     "history_database": Path("unused-history.sqlite3"),
 }
 
 
 class TestServerReadiness:
-    @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
-    @patch("main.ThreadPoolExecutor")
+    @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch("src.testing.runner.ThreadPoolExecutor")
     @patch("threading.Event.wait", return_value=False)
     def test_startup_timeout_is_reported(self, wait, executor_factory, runtime_config):
         executor = executor_factory.return_value.__enter__.return_value
         executor.submit.return_value.done.return_value = False
-        with pytest.raises(RuntimeError, match="GreenleeAmmeter did not start"):
+        with pytest.raises(RuntimeError, match="greenlee ammeter on port 5001 did not start"):
             main.main()
 
         assert executor.submit.call_count == 3
         assert executor.submit.call_args.args[2].is_set()
         wait.assert_called_once_with(timeout=5)
 
-    @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
-    @patch("main.request_current_from_ammeter", side_effect=OSError("request failed"))
+    @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch("src.testing.runner.ThreadPoolExecutor")
+    def test_invalid_sampling_is_rejected_before_startup(self, executor_factory, runtime_config):
+        with pytest.raises(ValueError, match="measurements_count"):
+            main.main(count=0)
+
+        executor_factory.assert_not_called()
+
+    @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch("src.testing.runner.ThreadPoolExecutor")
+    @patch("threading.Event.wait", return_value=False)
+    def test_port_conflict_names_ammeter_and_port(self, wait, executor_factory, runtime_config):
+        executor = executor_factory.return_value.__enter__.return_value
+        executor.submit.return_value.done.return_value = True
+        executor.submit.return_value.result.side_effect = OSError("address in use")
+
+        with pytest.raises(
+            RuntimeError, match="greenlee ammeter could not start on port 5001: address in use"
+        ):
+            main.main()
+
+    @patch("src.testing.runner.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch(
+        "src.testing.runner.request_current_from_ammeter",
+        side_effect=OSError("request failed"),
+    )
     @patch("Ammeters.base_ammeter.AmmeterEmulatorBase.start_server")
     def test_request_failure_stops_and_joins_workers(self, start_server, request, runtime_config):
         stopped = []

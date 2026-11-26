@@ -7,9 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, TypedDict
 
-from src.testing.test_framework import TestResult, timing_summary
+from src.testing.config import PROJECT_ROOT
+from src.testing.test_framework import (
+    TestResult,
+    coefficient_of_variation,
+    timing_summary,
+)
 
-DEFAULT_DATABASE = Path("results") / "history.sqlite3"
+DEFAULT_DATABASE = PROJECT_ROOT / "results" / "history.sqlite3"
 
 
 class SamplingParameters(TypedDict):
@@ -138,7 +143,13 @@ def _format_statistics(statistics: Optional[dict]) -> list[str]:
         ("minimum", "Minimum"),
         ("maximum", "Maximum"),
     )
-    return [f"  {label}: {statistics[key]:.6g} A" for key, label in labels]
+    lines = [f"  {label}: {statistics[key]:.6g} A" for key, label in labels]
+    variation = coefficient_of_variation(statistics)
+    if variation is None:
+        lines.append("  Coefficient of variation: unavailable (mean is zero)")
+    else:
+        lines.append(f"  Coefficient of variation: {variation:.6g}%")
+    return lines
 
 
 def format_timing(result: TestResult, frequency: float) -> str:

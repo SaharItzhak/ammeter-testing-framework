@@ -39,15 +39,36 @@ class TestRuntimeConfig:
 
         assert config["sampling"]["measurements_count"] == 5
         assert config["ports"] == {"greenlee": 5001, "entes": 5002, "circutor": 5003}
-        assert config["history_database"] == Path("results/history.sqlite3")
+        assert config["commands"]["greenlee"] == b"MEASURE_GREENLEE -get_measurement"
+        assert config["history_database"] == DEFAULT_CONFIG.parents[1] / "results/history.sqlite3"
 
     def test_loads_sampling_ports_and_history_path(self):
+        self.config["ammeters"]["greenlee"]["command"] = "CUSTOM MEASURE"
         config = self.write_config()
 
         assert config["sampling"]["measurements_count"] == 2
         assert config["sampling"]["sampling_frequency_hz"] == 2.0
         assert config["ports"] == {"greenlee": 5101, "entes": 5102, "circutor": 5103}
-        assert config["history_database"] == Path("results/test.sqlite3")
+        assert config["commands"]["greenlee"] == b"CUSTOM MEASURE"
+        assert config["history_database"] == DEFAULT_CONFIG.parents[1] / "results/test.sqlite3"
+
+    def test_default_config_loads_outside_the_repository(self, tmp_path):
+        project_root = DEFAULT_CONFIG.parents[1]
+        script = (
+            "import sys; "
+            "sys.path.insert(0, sys.argv[1]); "
+            "from main import DEFAULT_CONFIG, load_runtime_config; "
+            "print(load_runtime_config(DEFAULT_CONFIG)['sampling']['measurements_count'])"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script, str(project_root)],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+            timeout=10,
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stdout.strip() == "5"
 
     def test_missing_ammeter_and_duplicate_ports_are_rejected(self):
         self.config["ammeters"].pop("entes")
@@ -58,6 +79,14 @@ class TestRuntimeConfig:
         self.config["ammeters"]["entes"] = {"port": 5101}
         self.path.write_text(yaml.safe_dump(self.config), encoding="utf-8")
         with pytest.raises(ValueError, match="Duplicate"):
+            load_runtime_config(self.path)
+
+    @pytest.mark.parametrize("command", ["", "   ", 17])
+    def test_invalid_meter_commands_are_rejected(self, command):
+        self.config["ammeters"]["greenlee"]["command"] = command
+        self.path.write_text(yaml.safe_dump(self.config), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="ammeters.greenlee.command"):
             load_runtime_config(self.path)
 
     @pytest.mark.parametrize(
@@ -105,6 +134,7 @@ class TestRuntimeConfig:
         }
         for name, port in zip(("greenlee", "entes", "circutor"), ports):
             self.config["ammeters"][name]["port"] = port
+        self.config["ammeters"]["greenlee"]["command"] = "CUSTOM_GREENLEE_MEASURE"
         database = self.path.parent / "history.sqlite3"
         self.config["result_management"]["history_database"] = str(database)
         self.path.write_text(yaml.safe_dump(self.config), encoding="utf-8")
@@ -129,6 +159,7 @@ class TestRuntimeConfig:
             assert database.with_suffix(".html").is_file()
             for name in ("greenlee", "entes", "circutor"):
                 assert f"{name}: 2 measurements (count)" in completed.stdout
-        records = [HistoryStore(database).get(run["id"]) for run in HistoryStore(database).list_runs()]
+        store = HistoryStore(database)
+        records = [store.get(run["id"]) for run in store.list_runs()]
         assert len(records) == 6
         assert all(record["parameters"]["measurements_count"] == 2 for record in records)
