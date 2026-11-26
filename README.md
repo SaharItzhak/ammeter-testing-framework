@@ -84,13 +84,23 @@ not accuracy claims.
 
 ## Tests
 
-Install the development dependencies and browser:
+Run the exercise tests:
 
 ```sh
 python -m pip install -r requirements-dev.txt
-python -m playwright install chromium
 python -m pytest
 ```
 
-Playwright tests execute the dashboard JavaScript in headless Chromium. CI
-runs the suite on Windows and Ubuntu 24.04.
+These tests cover the exercise requirements and bonus challenges, including
+sampling, analysis, result history, error handling, and configuration.
+
+The optional dashboard-specific checks are separate from the exercise tests:
+
+```sh
+python -m pip install -r requirements-dashboard-tests.txt
+python -m playwright install chromium
+python -m pytest checks/dashboard
+```
+
+They include JavaScript checks in headless Chromium; those checks are skipped
+if Chromium is unavailable. CI runs both groups on Windows and Ubuntu 24.04.

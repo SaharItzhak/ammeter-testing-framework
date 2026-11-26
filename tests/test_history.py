@@ -10,7 +10,6 @@ import pytest
 
 import main
 from src.testing.history import HistoryStore
-from src.testing.report import generate_report
 from src.testing.test_framework import SamplingFailure
 
 TEST_RUNTIME_CONFIG = {
@@ -219,10 +218,6 @@ class TestHistory:
         assert record['result']['stop_reason'] == 'error'
         assert 'lost connection' in record['result']['error']
         assert len(record['result']['measurements']) == 2
-        report = generate_report(self.path).read_text(encoding='utf-8')
-        assert 'Failed (partial)' in report
-        assert 'lost connection' in report
-        assert 'max absolute deviation' in report
         base = [sys.executable, '-B', '-m', 'src.testing.history', '--database', str(self.path)]
         listed = subprocess.run(base + ['list'], capture_output=True, text=True, timeout=10)
         shown = subprocess.run(

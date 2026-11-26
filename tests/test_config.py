@@ -139,27 +139,16 @@ class TestRuntimeConfig:
         self.config["result_management"]["history_database"] = str(database)
         self.path.write_text(yaml.safe_dump(self.config), encoding="utf-8")
 
-        run_cli = (
-            "import runpy, sys; from unittest.mock import patch\n"
-            "with patch('webbrowser.open', return_value=True) as browser_open:\n"
-            "    runpy.run_path('main.py', run_name='__main__')\n"
-            "    if '--open-report' in sys.argv:\n"
-            "        browser_open.assert_called_once()\n"
-            "    else:\n"
-            "        browser_open.assert_not_called()\n"
+        completed = subprocess.run(
+            [sys.executable, "-B", "main.py", "--config", str(self.path)],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
-        for extra in ([], ["--open-report"]):
-            completed = subprocess.run(
-                [sys.executable, "-B", "-c", run_cli, "--config", str(self.path), *extra],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            assert completed.returncode == 0, completed.stderr
-            assert database.with_suffix(".html").is_file()
-            for name in ("greenlee", "entes", "circutor"):
-                assert f"{name}: 2 measurements (count)" in completed.stdout
+        assert completed.returncode == 0, completed.stderr
+        for name in ("greenlee", "entes", "circutor"):
+            assert f"{name}: 2 measurements (count)" in completed.stdout
         store = HistoryStore(database)
         records = [store.get(run["id"]) for run in store.list_runs()]
-        assert len(records) == 6
+        assert len(records) == 3
         assert all(record["parameters"]["measurements_count"] == 2 for record in records)

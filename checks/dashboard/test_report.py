@@ -1,6 +1,9 @@
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import os
+import runpy
+import sys
+from unittest.mock import Mock
 
 import pytest
 
@@ -70,6 +73,38 @@ def test_report_contains_runs_and_escapes_untrusted_history_text(report_context)
     assert '<img src=x onerror="alert(1)">' not in report
     assert database.is_file()
     assert len(store.list_runs()) == 1
+
+
+def test_report_shows_partial_failure(report_context):
+    database, store, parameters = report_context
+    result = sample_result("greenlee")
+    result["measurements"].append({"elapsed_seconds": 1.25, "current_amperes": 1.5})
+    result["stop_reason"] = "error"
+    result["error"] = "TimeoutError: lost connection"
+    store.save(result, parameters, "2026-01-01T00:00:00+00:00")
+
+    report = generate_report(database).read_text(encoding="utf-8")
+
+    assert "Failed (partial)" in report
+    assert "lost connection" in report
+    assert "max absolute deviation" in report
+
+
+@pytest.mark.parametrize("open_report_flag", [False, True])
+def test_main_only_opens_report_when_requested(tmp_path, monkeypatch, open_report_flag):
+    database = tmp_path / "history.sqlite3"
+    browser_open = Mock(return_value=True)
+    monkeypatch.setattr("src.testing.runner.run", lambda *args: database)
+    monkeypatch.setattr("webbrowser.open", browser_open)
+    args = ["main.py"]
+    if open_report_flag:
+        args.append("--open-report")
+    monkeypatch.setattr(sys, "argv", args)
+
+    runpy.run_module("main", run_name="__main__")
+
+    assert database.with_suffix(".html").is_file()
+    assert browser_open.call_count == int(open_report_flag)
 
 
 def test_chart_plots_measurements_and_handles_constant_values(report_context):
