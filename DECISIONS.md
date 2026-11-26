@@ -32,7 +32,8 @@
   It is built into Python and keeps history local without adding a service.
 - The HTML report is generated locally and does not upload data. It supports
   filtering, plots, run comparisons, and calculations against a user-supplied
-  reference current.
+  reference current. Its HTML, CSS, and JavaScript live in
+  `src/testing/history_template.html`; Python prepares the data separately.
 - Standard deviation and coefficient of variation describe variation within a
   run. They do not establish accuracy. Accuracy requires a known reference;
   the independent random emulators do not provide a common controlled input.

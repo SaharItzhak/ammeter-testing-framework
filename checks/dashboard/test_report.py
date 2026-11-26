@@ -57,7 +57,7 @@ def test_empty_history_has_a_clear_dashboard_state(report_context):
 
 def test_report_contains_runs_and_escapes_untrusted_history_text(report_context):
     database, store, parameters = report_context
-    save(store, parameters, '<img src=x onerror="alert(1)">')
+    save(store, parameters, '<img src=x onerror="alert(1)">@@ROWS@@')
 
     report = generate_report(database).read_text(encoding="utf-8")
 
@@ -70,9 +70,29 @@ def test_report_contains_runs_and_escapes_untrusted_history_text(report_context)
     assert "5 s" in report
     assert "data-mean=" in report
     assert "&lt;img" in report
+    assert "@@ROWS@@" in report
     assert '<img src=x onerror="alert(1)">' not in report
     assert database.is_file()
     assert len(store.list_runs()) == 1
+
+
+def test_report_loads_all_runs_with_one_database_connection(report_context, monkeypatch):
+    database, store, parameters = report_context
+    save(store, parameters, "greenlee")
+    save(store, parameters, "entes")
+    connect = HistoryStore._connect_readonly
+    connections = []
+
+    def track_connection(self):
+        connections.append(self.path)
+        return connect(self)
+
+    monkeypatch.setattr(HistoryStore, "_connect_readonly", track_connection)
+    report = generate_report(database).read_text(encoding="utf-8")
+
+    assert "Greenlee" in report
+    assert "Entes" in report
+    assert connections == [database]
 
 
 def test_report_shows_partial_failure(report_context):

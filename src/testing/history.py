@@ -77,15 +77,20 @@ class HistoryStore:
             raise ValueError("History database does not contain the expected runs table")
         return True
 
-    def list_runs(self) -> list[dict[str, str]]:
+    def _list_rows(self) -> list[tuple[str, str, str, str]]:
         if not self.path.is_file():
             return []
         with closing(self._connect_readonly()) as connection:
             if not self._has_runs_table(connection):
                 return []
-            rows = connection.execute(
+            return connection.execute(
                 "SELECT id, saved_at, ammeter, payload FROM runs ORDER BY saved_at DESC, id"
             ).fetchall()
+
+    def list_records(self) -> list[HistoryRecord]:
+        return [json.loads(payload) for _, _, _, payload in self._list_rows()]
+
+    def list_runs(self) -> list[dict[str, str]]:
         return [
             {
                 "id": run_id,
@@ -93,7 +98,7 @@ class HistoryStore:
                 "ammeter": ammeter,
                 "status": "failed" if json.loads(payload)["result"]["stop_reason"] == "error" else "completed",
             }
-            for run_id, saved_at, ammeter, payload in rows
+            for run_id, saved_at, ammeter, payload in self._list_rows()
         ]
 
     def get(self, run_id: str) -> HistoryRecord:
