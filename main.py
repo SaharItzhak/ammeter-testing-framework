@@ -11,9 +11,9 @@ from Ammeters.Circutor_Ammeter import CircutorAmmeter
 from Ammeters.Entes_Ammeter import EntesAmmeter
 from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 from Ammeters.client import request_current_from_ammeter
-from src.testing.history import DEFAULT_DATABASE, HistoryStore
+from src.testing.history import DEFAULT_DATABASE, HistoryStore, format_timing
 from src.testing.report import generate_report, open_report
-from src.testing.test_framework import AmmeterTestFramework
+from src.testing.test_framework import AmmeterTestFramework, SamplingFailure
 from src.utils.config import load_config
 
 DEFAULT_CONFIG = Path("config") / "config.yaml"
@@ -112,18 +112,30 @@ def main(
             history = HistoryStore(database)
             for name in selected:
                 started_at = datetime.now(timezone.utc).isoformat()
-                result = framework.run_test(name, count, duration, frequency)
+                parameters = {
+                    "measurements_count": count,
+                    "total_duration_seconds": duration,
+                    "sampling_frequency_hz": frequency,
+                }
+                try:
+                    result = framework.run_test(name, count, duration, frequency)
+                except SamplingFailure as error:
+                    try:
+                        partial = history.save(error.partial_result, parameters, started_at)
+                    except (OSError, sqlite3.Error, ValueError) as save_error:
+                        raise RuntimeError(
+                            f"{name} failed: {error}; could not save partial results: {save_error}"
+                        ) from save_error
+                    raise RuntimeError(
+                        f"{name} failed: {error}; partial results saved as run {partial['id']}"
+                    ) from error
                 if not result["measurements"]:
                     raise RuntimeError(
                         f"{name} produced no measurements; no history record was saved"
                     )
                 record = history.save(
                     result,
-                    {
-                        "measurements_count": count,
-                        "total_duration_seconds": duration,
-                        "sampling_frequency_hz": frequency,
-                    },
+                    parameters,
                     started_at,
                 )
                 print(f"{name}: {len(result['measurements'])} measurements ({result['stop_reason']})")
@@ -138,6 +150,7 @@ def main(
                         f"population standard deviation: {summary['standard_deviation']:.6g} A; "
                         f"min: {summary['minimum']:.6g} A; max: {summary['maximum']:.6g} A"
                     )
+                print(f"  {format_timing(result, frequency)}")
         finally:
             stop.set()
     for future in futures:

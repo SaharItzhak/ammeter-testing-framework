@@ -159,3 +159,20 @@ Planned or optional work is not described as completed.
   a traceable reference.
 - Unix-like listeners enable `SO_REUSEADDR` so a completed run can be
   restarted immediately while old TCP connections remain in `TIME_WAIT`.
+
+## Partial results, timing, and browser validation
+
+- Measurement-request errors after at least one successful reading preserve a
+  failed partial run with the error and raw readings; the CLI still exits
+  unsuccessfully. Failures before the first reading create no record. Process
+  termination and storage failure cannot guarantee partial recovery.
+- Timing statistics compare intervals between request starts against the
+  configured interval. They do not measure physical acquisition timing or
+  guarantee real-time behavior. Existing history is supported using its saved
+  measurement timestamps and frequency.
+- TCP commands are accumulated until complete with a bounded overall timeout;
+  invalid or incomplete commands are reported. This preserves the existing
+  fixed-command protocol without assuming a single TCP receive.
+- Optional Playwright development dependencies run the real report in headless
+  Chromium, including reference calculations, comparison, and filtering.
+  Windows and Ubuntu CI install the browser and run these tests.

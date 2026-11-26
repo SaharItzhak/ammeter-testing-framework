@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 import main
 from src.testing.history import HistoryStore
+from src.testing.report import generate_report
+from src.testing.test_framework import SamplingFailure
 
 TEST_RUNTIME_CONFIG = {
     "sampling": {
@@ -165,6 +167,85 @@ class HistoryTests(unittest.TestCase):
         saved = self.store.get(runs[0]["id"])
         self.assertEqual(saved["result"], result("greenlee", 1.0))
         self.assertEqual(saved["parameters"], self.parameters)
+
+    @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch("main.request_current_from_ammeter", side_effect=[1.0, 3.0, TimeoutError("lost connection")])
+    @patch("main.GreenleeAmmeter.start_server")
+    def test_main_saves_partial_failed_run_and_preserves_history(self, start_server, request, config):
+        earlier = self.save("entes", 4.0)
+        def serve(ready, stop):
+            ready.set()
+            if not stop.wait(timeout=3):
+                raise RuntimeError("Server was not stopped")
+        start_server.side_effect = serve
+        with self.assertRaisesRegex(RuntimeError, "partial results saved as run") as raised:
+            main.main("greenlee", count=3, duration=5, frequency=100, database=self.path)
+
+        runs = self.store.list_runs()
+        failed = next(run for run in runs if run["status"] == "failed")
+        record = self.store.get(failed["id"])
+        self.assertIn(failed["id"], str(raised.exception))
+        self.assertEqual(self.store.get(earlier["id"]), earlier)
+        self.assertEqual(record["result"]["stop_reason"], "error")
+        self.assertIn("lost connection", record["result"]["error"])
+        self.assertEqual(len(record["result"]["measurements"]), 2)
+        report = generate_report(self.path).read_text(encoding="utf-8")
+        self.assertIn("Failed (partial)", report)
+        self.assertIn("lost connection", report)
+        self.assertIn("max absolute deviation", report)
+        base = [sys.executable, "-B", "-m", "src.testing.history", "--database", str(self.path)]
+        listed = subprocess.run(base + ["list"], capture_output=True, text=True, timeout=10)
+        shown = subprocess.run(base + ["show", failed["id"]], capture_output=True, text=True, timeout=10)
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        self.assertIn("failed", listed.stdout)
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertIn("Failure: TimeoutError: lost connection (partial results)", shown.stdout)
+        self.assertIn("max absolute deviation", shown.stdout)
+
+    def test_cli_returns_failure_and_saves_partial_results(self):
+        run_cli = (
+            "import runpy; from unittest.mock import patch\n"
+            "def serve(self, ready, stop):\n"
+            "    ready.set()\n"
+            "    stop.wait(3)\n"
+            "with patch('Ammeters.Greenlee_Ammeter.GreenleeAmmeter.start_server', serve), "
+            "patch('Ammeters.client.request_current_from_ammeter', "
+            "side_effect=[1.0, OSError('connection lost')]):\n"
+            "    runpy.run_path('main.py', run_name='__main__')\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-B", "-c", run_cli, "--ammeter", "greenlee",
+             "--database", str(self.path), "--count", "3", "--frequency", "100"],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("partial results saved as run", completed.stderr)
+        self.assertIn("connection lost", completed.stderr)
+        runs = self.store.list_runs()
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["status"], "failed")
+        self.assertEqual(len(self.store.get(runs[0]["id"])["result"]["measurements"]), 1)
+
+    @patch("main.load_runtime_config", return_value=TEST_RUNTIME_CONFIG)
+    @patch("main.HistoryStore.save", side_effect=OSError("disk full"))
+    @patch("main.AmmeterTestFramework")
+    @patch("main.GreenleeAmmeter.start_server")
+    def test_partial_save_failure_reports_original_and_storage_errors(
+        self, start_server, framework_factory, save, config
+    ):
+        def serve(ready, stop):
+            ready.set()
+            stop.wait(3)
+        start_server.side_effect = serve
+        partial = result("greenlee", 1.0)
+        partial["stop_reason"] = "error"
+        partial["error"] = "TimeoutError: connection lost"
+        framework_factory.return_value.run_test.side_effect = SamplingFailure(
+            partial["error"], partial
+        )
+        with self.assertRaisesRegex(RuntimeError, "connection lost.*could not save partial results: disk full"):
+            main.main("greenlee", count=3, duration=5, frequency=1, database=self.path)
 
     def test_history_cli_lists_shows_and_compares_runs(self):
         first = self.save("greenlee", 1.0)

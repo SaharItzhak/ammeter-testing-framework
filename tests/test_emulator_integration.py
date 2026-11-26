@@ -49,6 +49,16 @@ class EmulatorIntegrationTests(unittest.TestCase):
                             )
                             self.assertTrue(math.isfinite(measurement))
                             self.assertGreater(measurement, 0)
+                            with socket.create_connection(("localhost", port), timeout=3) as client:
+                                command = ammeter.get_current_command
+                                split = len(command) // 2
+                                client.sendall(command[:split])
+                                client.settimeout(0.1)
+                                with self.assertRaises(socket.timeout):
+                                    client.recv(1024)
+                                client.sendall(command[split:])
+                                client.settimeout(3)
+                                self.assertGreater(float(client.recv(1024)), 0)
                             ammeter.port = port
                             framework = AmmeterTestFramework({"meter": ammeter})
                             result = framework.run_test("meter", 2, 3, 50)

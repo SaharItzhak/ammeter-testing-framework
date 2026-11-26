@@ -33,17 +33,31 @@ class AmmeterEmulatorBase(ABC):
                 except socket.timeout:
                     continue
                 with conn:
-                    conn.settimeout(1)
                     print(f"Connected by {addr}")
+                    command = self.get_current_command
+                    data = bytearray()
+                    deadline = time.monotonic() + 1
                     try:
-                        data = conn.recv(1024)
+                        while len(data) < len(command):
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                raise socket.timeout()
+                            conn.settimeout(remaining)
+                            chunk = conn.recv(1024)
+                            if not chunk:
+                                break
+                            data.extend(chunk)
+                            if not command.startswith(data):
+                                break
                     except socket.timeout:
                         print(f"Client {addr} timed out waiting for a command")
                         continue
-                    if data == self.get_current_command:
+                    if data == command:
                         # Call the specific measure_current() method defined in subclasses
                         current = self.measure_current()
                         conn.sendall(str(current).encode('utf-8'))
+                    else:
+                        print(f"Client {addr} sent an incomplete or invalid command")
 
     @property
     @abstractmethod

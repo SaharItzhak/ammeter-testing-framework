@@ -6,6 +6,8 @@ from pathlib import Path
 
 from typing import TYPE_CHECKING
 
+from src.testing.history import format_timing
+
 if TYPE_CHECKING:
     from src.testing.history import HistoryRecord
 
@@ -116,6 +118,11 @@ def _run_row(record: HistoryRecord) -> str:
     ammeter = result["ammeter"]
     statistics = result["statistics"]
     mean = "" if statistics is None else _format_number(statistics["mean"])
+    status = "Failed (partial)" if result["stop_reason"] == "error" else "Completed"
+    failure = (
+        f'<p class="failure">Failed: {_escape(result["error"])}. Measurements below are partial.</p>'
+        if result.get("error") else ""
+    )
     details = (
         f'<details><summary>Run details</summary>'
         '<div class="run-meta">'
@@ -125,6 +132,7 @@ def _run_row(record: HistoryRecord) -> str:
         f'<div><span>Sampling settings</span><strong dir="ltr">{parameters["measurements_count"]} measurements · '
         f'{parameters["total_duration_seconds"]:g} s · {parameters["sampling_frequency_hz"]:g} Hz</strong></div>'
         "</div>"
+        f'{failure}<p class="muted">{_escape(format_timing(result, parameters["sampling_frequency_hz"]))}</p>'
         f'<dl class="stats">{_statistics_rows(record)}</dl>'
         f'{_measurement_chart(record)}'
         f'{_reference_assessment(record)}'
@@ -139,6 +147,7 @@ def _run_row(record: HistoryRecord) -> str:
         f'<td class="run-id" dir="ltr">{_escape(run_id)}</td>'
         f"<td>{_escape(ammeter.title())}</td>"
         f'<td dir="ltr">{_escape(_format_timestamp(record["saved_at"]))}</td>'
+        f"<td>{status}</td>"
         f'<td dir="ltr">{len(result["measurements"])}</td>'
         f'<td dir="ltr">{_escape(mean + " A" if mean else "—")}</td>'
         f"<td>{details}</td>"
@@ -156,6 +165,7 @@ def _comparison_options(records: list[HistoryRecord]) -> str:
         )
         title = (
             f'{record["result"]["ammeter"].title()} · '
+            f'{"Failed (partial) · " if record["result"]["stop_reason"] == "error" else ""}'
             f'{_format_timestamp(record["saved_at"])} · {record["id"][:8]}'
         )
         options.append(
@@ -255,6 +265,7 @@ def _render_html(records: list[HistoryRecord]) -> str:
     .reference-assessment button {{ margin-top: 10px; }}
     h4 {{ margin: 14px 0 8px; }}
     .empty-cell {{ color: var(--muted); }}
+    .failure {{ color: #b42318; font-weight: 650; }}
     .empty-state {{ padding: 46px 16px 30px; text-align: center; }}
     .empty-icon {{ display: inline-grid; width: 50px; height: 50px; place-items: center; border-radius: 15px; background: #eaf1ff; color: var(--brand); font-size: 1.6rem; }}
     .empty-state h2 {{ margin-top: 13px; }}
@@ -305,7 +316,7 @@ def _render_html(records: list[HistoryRecord]) -> str:
         </div>
         <div class="table-scroll">
           <table>
-            <thead><tr><th scope="col">Run ID</th><th scope="col">Ammeter</th><th scope="col">Saved (UTC)</th><th scope="col">Samples</th><th scope="col">Mean</th><th scope="col">Details</th></tr></thead>
+            <thead><tr><th scope="col">Run ID</th><th scope="col">Ammeter</th><th scope="col">Saved (UTC)</th><th scope="col">Status</th><th scope="col">Samples</th><th scope="col">Mean</th><th scope="col">Details</th></tr></thead>
             <tbody id="runRows">{rows}</tbody>
           </table>
         </div>

@@ -106,28 +106,38 @@ duration. A request that times out or exceeds the duration raises an error
 instead of returning a partial success.
 Scheduling uses a monotonic clock, but OS scheduling and network latency can
 introduce jitter; this is not a real-time timing guarantee.
+Timing reports the target and mean intervals between consecutive request
+starts, along with their mean and maximum absolute deviations from the target.
+These measurements describe request scheduling, not hardware acquisition
+times. At least two readings are required to calculate timing.
 The framework returns measurement values, elapsed times, and mean, median,
 minimum, maximum, and population standard deviation in amperes. For a single
 measurement the population standard deviation is zero; if there are no
 measurements, the statistics are `None`. The command prints the measurements,
 count, stop reason, and statistics.
 
-Example output from one successful run using all three emulators with one
-measurement per ammeter:
+Example from one successful default run (five emulator readings per ammeter;
+all currents are in amperes):
 
-| Ammeter | Measurements | Mean current |
-| --- | ---: | ---: |
-| Greenlee | 1 | 0.137909 A |
-| ENTES | 1 | 24.3893 A |
-| CIRCUTOR | 1 | 0.0217388 A |
+| Ammeter | Measurements |
+| --- | --- |
+| Greenlee | 0.348055, 0.349531, 1.262272, 0.500402, 0.080923 |
+| ENTES | 27.703703, 130.482656, 30.132014, 142.984111, 165.967718 |
+| CIRCUTOR | 0.016365, 0.018602, 0.020084, 0.026193, 0.020610 |
 
-These are sample emulator values, not accuracy claims; new runs generate
-different measurements.
+| Ammeter | Mean | Median | Population std. dev. | Minimum | Maximum |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Greenlee | 0.508237 | 0.349531 | 0.400518 | 0.080923 | 1.262272 |
+| ENTES | 99.454040 | 130.482656 | 58.711780 | 27.703703 | 165.967718 |
+| CIRCUTOR | 0.020371 | 0.020084 | 0.003262 | 0.016365 | 0.026193 |
+
+Values are rounded for display and generated randomly; they are not accuracy
+claims. New runs produce different readings.
 
 ### Run history
 
-Each successfully completed ammeter run is saved to `results/history.sqlite3`
-and its unique ID is printed. The database contains UTC start/save times,
+Each completed ammeter run is saved to `results/history.sqlite3` and its
+unique ID is printed. The database contains UTC start/save times,
 sampling parameters, raw measurements, and statistics. The default database is
 local and ignored by Git. Set `--database path` on `main.py` to use another
 location; custom database paths are not necessarily ignored by Git.
@@ -149,14 +159,16 @@ database itself ends in `.html`, the report uses `.html.report.html` instead;
 an existing hard link to the database is never overwritten. `list`, `show`, and `compare` remain
 available as terminal alternatives. If no run has been saved yet, the report
 explains how to start; terminal commands give clear messages for empty history
-or missing IDs. A sampling attempt that produces no measurements fails
-explicitly and is not stored as a successful run.
+or missing IDs.
 
 For a custom database, add `--database path` before the command. Comparison
 shows both records and statistical differences (second minus first); those
-differences alone do not establish device accuracy. A failed measurement is
-not saved as a successful run. When sampling multiple ammeters, earlier
-completed runs remain saved if a later run fails.
+differences alone do not establish device accuracy. If a measurement request
+fails after earlier readings, those readings and the error are saved as a
+**failed, partial** run; the command exits nonzero and prints its run ID.
+Refresh the report command above to see it. An error before the first reading
+does not create a run. Previously completed runs remain saved. Unexpected
+process termination or a storage failure cannot guarantee partial results.
 
 For a run measured against a known constant reference current under the same
 conditions, expand its details and enter that reference to calculate mean
@@ -180,6 +192,27 @@ python -m unittest discover -s tests -v
 ```
 
 The test suite reports pass or fail in the terminal. It uses temporary data
-and does not open a browser or create a persistent HTML test report. The HTML
-history dashboard contains measurement results from `python main.py`; it is
-not a report of the automated test suite.
+and does not open a visible browser or create a persistent HTML test report.
+The HTML history dashboard contains measurement results from `python main.py`;
+it is not a report of the automated test suite.
+
+The browser tests require Playwright and its headless Chromium. Install these
+test-only dependencies before running the suite; otherwise the browser tests
+are explicitly skipped:
+
+```sh
+python -m pip install -r requirements-dev.txt
+```
+
+In Windows PowerShell, install Chromium while preserving other Playwright
+browser caches:
+
+```powershell
+$env:PLAYWRIGHT_SKIP_BROWSER_GC = "1"
+python -m playwright install chromium
+```
+
+On macOS or Linux, use
+`PLAYWRIGHT_SKIP_BROWSER_GC=1 python -m playwright install chromium`.
+Linux may also require the system packages documented by Playwright; CI uses
+`python -m playwright install --with-deps chromium`.

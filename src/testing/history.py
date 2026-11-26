@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, TypedDict
 
-from src.testing.test_framework import TestResult
+from src.testing.test_framework import TestResult, timing_summary
 
 DEFAULT_DATABASE = Path("results") / "history.sqlite3"
 
@@ -79,11 +79,16 @@ class HistoryStore:
             if not self._has_runs_table(connection):
                 return []
             rows = connection.execute(
-                "SELECT id, saved_at, ammeter FROM runs ORDER BY saved_at DESC, id"
+                "SELECT id, saved_at, ammeter, payload FROM runs ORDER BY saved_at DESC, id"
             ).fetchall()
         return [
-            {"id": run_id, "saved_at": saved_at, "ammeter": ammeter}
-            for run_id, saved_at, ammeter in rows
+            {
+                "id": run_id,
+                "saved_at": saved_at,
+                "ammeter": ammeter,
+                "status": "failed" if json.loads(payload)["result"]["stop_reason"] == "error" else "completed",
+            }
+            for run_id, saved_at, ammeter, payload in rows
         ]
 
     def get(self, run_id: str) -> HistoryRecord:
@@ -136,6 +141,18 @@ def _format_statistics(statistics: Optional[dict]) -> list[str]:
     return [f"  {label}: {statistics[key]:.6g} A" for key, label in labels]
 
 
+def format_timing(result: TestResult, frequency: float) -> str:
+    timing = timing_summary(result["measurements"], frequency)
+    if timing is None:
+        return "Timing: unavailable (at least two measurements required)"
+    return (
+        f"Timing between request starts: target {timing['target_interval_seconds']:.6g} s; "
+        f"mean {timing['mean_interval_seconds']:.6g} s; "
+        f"mean absolute deviation {timing['mean_absolute_deviation_seconds']:.6g} s; "
+        f"max absolute deviation {timing['max_absolute_deviation_seconds']:.6g} s"
+    )
+
+
 def _format_run(record: HistoryRecord) -> str:
     result = record["result"]
     parameters = record["parameters"]
@@ -155,6 +172,8 @@ def _format_run(record: HistoryRecord) -> str:
             f"{result['elapsed_seconds']:.3f} s; stopped by {result['stop_reason']}"
         ),
     ]
+    if result.get("error"):
+        lines.append(f"Failure: {result['error']} (partial results)")
     if measurements:
         lines.append("Measurements:")
         lines.extend(
@@ -163,6 +182,7 @@ def _format_run(record: HistoryRecord) -> str:
             for index, measurement in enumerate(measurements, 1)
         )
     lines.extend(["Statistics:", *_format_statistics(result["statistics"])])
+    lines.append(format_timing(result, parameters["sampling_frequency_hz"]))
     return "\n".join(lines)
 
 
@@ -174,12 +194,12 @@ def _format_runs(runs: list[dict[str, str]]) -> str:
     timestamps = [_format_timestamp(run["saved_at"]) for run in runs]
     timestamp_width = max(len("SAVED (UTC)"), *(len(value) for value in timestamps))
     lines = [
-        f"{'RUN ID':<{id_width}}  {'SAVED (UTC)':<{timestamp_width}}  {'AMMETER':<{ammeter_width}}",
-        f"{'-' * id_width}  {'-' * timestamp_width}  {'-' * ammeter_width}",
+        f"{'RUN ID':<{id_width}}  {'SAVED (UTC)':<{timestamp_width}}  {'AMMETER':<{ammeter_width}}  STATUS",
+        f"{'-' * id_width}  {'-' * timestamp_width}  {'-' * ammeter_width}  ---------",
     ]
     lines.extend(
         f"{run['id']:<{id_width}}  {saved_at:<{timestamp_width}}  "
-        f"{run['ammeter']:<{ammeter_width}}"
+        f"{run['ammeter']:<{ammeter_width}}  {run['status']}"
         for run, saved_at in zip(runs, timestamps)
     )
     return "\n".join(lines)

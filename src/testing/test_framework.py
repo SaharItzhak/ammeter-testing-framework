@@ -21,12 +21,39 @@ class MeasurementStatistics(TypedDict):
     maximum: float
 
 
-class TestResult(TypedDict):
+class _TestResultRequired(TypedDict):
     ammeter: str
     measurements: list[Measurement]
     elapsed_seconds: float
     stop_reason: str
     statistics: Optional[MeasurementStatistics]
+
+
+class TestResult(_TestResultRequired, total=False):
+    error: str
+
+
+class SamplingFailure(RuntimeError):
+    def __init__(self, message: str, partial_result: TestResult):
+        super().__init__(message)
+        self.partial_result = partial_result
+
+
+def timing_summary(measurements: list[Measurement], frequency: float) -> Optional[dict[str, float]]:
+    if len(measurements) < 2:
+        return None
+    intervals = [
+        second["elapsed_seconds"] - first["elapsed_seconds"]
+        for first, second in zip(measurements, measurements[1:])
+    ]
+    target = 1 / frequency
+    deviations = [abs(interval - target) for interval in intervals]
+    return {
+        "target_interval_seconds": target,
+        "mean_interval_seconds": statistics.mean(intervals),
+        "mean_absolute_deviation_seconds": statistics.mean(deviations),
+        "max_absolute_deviation_seconds": max(deviations),
+    }
 
 
 class AmmeterTestFramework:
@@ -74,6 +101,26 @@ class AmmeterTestFramework:
         deadline = start + total_duration_seconds
         measurements: list[Measurement] = []
         next_sample = start
+
+        def result(stop_reason: str) -> TestResult:
+            values = [measurement["current_amperes"] for measurement in measurements]
+            summary: Optional[MeasurementStatistics] = None
+            if values:
+                summary = {
+                    "mean": statistics.mean(values),
+                    "median": statistics.median(values),
+                    "standard_deviation": statistics.pstdev(values),
+                    "minimum": min(values),
+                    "maximum": max(values),
+                }
+            return {
+                "ammeter": ammeter_type,
+                "measurements": measurements,
+                "elapsed_seconds": time.monotonic() - start,
+                "stop_reason": stop_reason,
+                "statistics": summary,
+            }
+
         while len(measurements) < measurements_count:
             now = time.monotonic()
             if now >= deadline or next_sample >= deadline:
@@ -83,29 +130,19 @@ class AmmeterTestFramework:
                 now = time.monotonic()
             if now >= deadline:
                 break
-            current = self.request(
-                ammeter.port, ammeter.get_current_command, timeout=deadline - now
-            )
-            if time.monotonic() > deadline:
-                raise TimeoutError("Measurement exceeded the test duration")
+            try:
+                current = self.request(
+                    ammeter.port, ammeter.get_current_command, timeout=deadline - now
+                )
+                if time.monotonic() > deadline:
+                    raise TimeoutError("Measurement exceeded the test duration")
+            except (OSError, ValueError, RuntimeError) as error:
+                if not measurements:
+                    raise
+                partial = result("error")
+                partial["error"] = f"{type(error).__name__}: {error}"
+                raise SamplingFailure(partial["error"], partial) from error
             measurements.append({"elapsed_seconds": now - start, "current_amperes": current})
             next_sample = max(next_sample + interval, now + interval)
 
-        values = [measurement["current_amperes"] for measurement in measurements]
-        summary: Optional[MeasurementStatistics] = None
-        if values:
-            summary = {
-                "mean": statistics.mean(values),
-                "median": statistics.median(values),
-                "standard_deviation": statistics.pstdev(values),
-                "minimum": min(values),
-                "maximum": max(values),
-            }
-
-        return {
-            "ammeter": ammeter_type,
-            "measurements": measurements,
-            "elapsed_seconds": time.monotonic() - start,
-            "stop_reason": "count" if len(measurements) == measurements_count else "duration",
-            "statistics": summary,
-        }
+        return result("count" if len(measurements) == measurements_count else "duration")

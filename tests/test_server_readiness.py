@@ -78,7 +78,7 @@ class ServerReadinessTests(unittest.TestCase):
 
         connection.recv.side_effect = stop_on_recv
         GreenleeAmmeter(5001).start_server(stop=stop)
-        connection.settimeout.assert_called_once_with(1)
+        connection.settimeout.assert_called_once()
         connection.__exit__.assert_called_once()
         socket_factory.return_value.__exit__.assert_called_once()
 

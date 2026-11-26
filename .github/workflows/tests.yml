@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_GC: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -20,6 +22,12 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements-dev.txt
+      - name: Install Chromium (Ubuntu)
+        if: runner.os == 'Linux'
+        run: python -m playwright install --with-deps chromium
+      - name: Install Chromium (Windows)
+        if: runner.os == 'Windows'
+        run: python -m playwright install chromium
       - name: Run tests
         run: python -m unittest discover -s tests -v

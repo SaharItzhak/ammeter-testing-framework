@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from src.testing.test_framework import AmmeterTestFramework
+from src.testing.test_framework import AmmeterTestFramework, SamplingFailure, timing_summary
 
 
 class FakeClock:
@@ -104,6 +104,36 @@ class SamplingTests(unittest.TestCase):
             [item["elapsed_seconds"] for item in result["measurements"]],
             [0.0, 0.75, 1.5],
         )
+        timing = timing_summary(result["measurements"], 2)
+        self.assertEqual(timing["target_interval_seconds"], 0.5)
+        self.assertEqual(timing["mean_interval_seconds"], 0.75)
+        self.assertEqual(timing["mean_absolute_deviation_seconds"], 0.25)
+        self.assertEqual(timing["max_absolute_deviation_seconds"], 0.25)
+        self.assertIsNone(timing_summary(result["measurements"][:1], 2))
+
+    def test_partial_measurements_are_attached_to_failure(self):
+        self.request.side_effect = [1.0, 3.0, TimeoutError("timed out")]
+        with patch("src.testing.test_framework.time", self.clock):
+            with self.assertRaises(SamplingFailure) as raised:
+                self.framework.run_test("greenlee", 3, 5, 2)
+        partial = raised.exception.partial_result
+        self.assertEqual(partial["stop_reason"], "error")
+        self.assertIn("TimeoutError: timed out", partial["error"])
+        self.assertEqual([m["current_amperes"] for m in partial["measurements"]], [1.0, 3.0])
+        self.assertEqual(partial["statistics"]["mean"], 2.0)
+        self.assertIsInstance(raised.exception.__cause__, TimeoutError)
+
+    def test_late_response_preserves_only_earlier_measurements(self):
+        def request(*args, **kwargs):
+            if self.request.call_count == 2:
+                self.clock.now = 2.0
+            return 1.0
+        self.request.side_effect = request
+        with patch("src.testing.test_framework.time", self.clock):
+            with self.assertRaises(SamplingFailure) as raised:
+                self.framework.run_test("greenlee", 3, 1, 2)
+        self.assertIn("exceeded", raised.exception.partial_result["error"])
+        self.assertEqual(len(raised.exception.partial_result["measurements"]), 1)
 
     def test_invalid_inputs_are_rejected(self):
         for args in (
