@@ -157,3 +157,5 @@ Planned or optional work is not described as completed.
   against a user-supplied constant reference. This does not establish accuracy
   for the supplied independent random emulators without controlled inputs and
   a traceable reference.
+- Unix-like listeners enable `SO_REUSEADDR` so a completed run can be
+  restarted immediately while old TCP connections remain in `TIME_WAIT`.

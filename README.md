@@ -54,6 +54,8 @@ requests up to five measurements from each at 5 Hz, within five seconds per
 ammeter.
 Servers are stopped and their worker threads are joined on exit, including when
 a request fails. Socket timeouts prevent idle clients from blocking shutdown.
+On Unix-like systems, the listening sockets allow immediate reuse after
+shutdown, so consecutive runs do not fail because of TCP `TIME_WAIT`.
 Greenlee prints resistance in `ohms` to avoid output encoding errors on
 terminals that cannot display the ohm symbol.
 After a successful run, the project creates `results/history.html` and prints

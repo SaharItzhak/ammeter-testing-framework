@@ -1,6 +1,7 @@
 import socket
 import time
 import random
+import os
 from abc import ABC, abstractmethod
 from threading import Event
 from typing import Optional
@@ -18,6 +19,8 @@ class AmmeterEmulatorBase(ABC):
         Handles one client at a time until the optional stop event is set.
         """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if os.name != "nt":
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(('localhost', self.port))
             s.listen()
             s.settimeout(0.2)
