@@ -10,6 +10,8 @@ import pytest
 from src.testing.history import HistoryStore, main as history_main
 from src.testing.report import generate_report, open_report
 
+pytestmark = pytest.mark.integration
+
 
 def sample_result(ammeter):
     return {

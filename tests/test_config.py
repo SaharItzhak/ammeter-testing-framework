@@ -52,6 +52,7 @@ class TestRuntimeConfig:
         assert config["commands"]["greenlee"] == b"CUSTOM MEASURE"
         assert config["history_database"] == DEFAULT_CONFIG.parents[1] / "results/test.sqlite3"
 
+    @pytest.mark.integration
     def test_default_config_loads_outside_the_repository(self, tmp_path):
         project_root = DEFAULT_CONFIG.parents[1]
         script = (
@@ -121,6 +122,7 @@ class TestRuntimeConfig:
         with pytest.raises(ValueError, match="Invalid YAML configuration"):
             load_runtime_config(self.path)
 
+    @pytest.mark.integration
     def test_application_uses_configured_ports_sampling_and_history(self):
         ports = []
         for _ in range(3):

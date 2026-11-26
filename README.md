@@ -97,6 +97,14 @@ python -m pytest
 
 These tests cover the exercise requirements and bonus challenges, including
 sampling, analysis, result history, error handling, and configuration.
+Shared fixtures in `tests/conftest.py` provide isolated configuration, while
+the emulator integration fixture starts and stops a server for each meter.
+Markers let you select integration tests or run the remaining exercise tests:
+
+```sh
+python -m pytest -m integration
+python -m pytest -m "not integration"
+```
 
 The optional dashboard-specific checks are separate from the exercise tests:
 
@@ -107,4 +115,6 @@ python -m pytest checks/dashboard
 ```
 
 They include JavaScript checks in headless Chromium; those checks are skipped
-if Chromium is unavailable. CI runs both groups on Windows and Ubuntu 24.04.
+if Chromium is unavailable. Run just those browser checks with
+`python -m pytest checks/dashboard -m browser`. CI runs both groups on Windows
+and Ubuntu 24.04.

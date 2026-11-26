@@ -1,7 +1,11 @@
 import socket
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 from Ammeters.client import request_current_from_ammeter
+
+pytestmark = pytest.mark.integration
 
 
 def test_measurement_over_tcp():

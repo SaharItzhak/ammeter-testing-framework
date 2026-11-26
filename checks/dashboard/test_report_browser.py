@@ -9,6 +9,8 @@ sync_playwright = playwright_api.sync_playwright
 from src.testing.history import HistoryStore
 from src.testing.report import generate_report
 
+pytestmark = [pytest.mark.integration, pytest.mark.browser]
+
 
 @pytest.fixture(scope="session")
 def browser():

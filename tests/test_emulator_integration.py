@@ -13,9 +13,11 @@ from Ammeters.Greenlee_Ammeter import GreenleeAmmeter
 from Ammeters.client import request_current_from_ammeter
 from src.testing.test_framework import AmmeterTestFramework
 
+pytestmark = pytest.mark.integration
 
-@pytest.mark.parametrize("ammeter_type", [GreenleeAmmeter, EntesAmmeter, CircutorAmmeter])
-def test_each_emulator_returns_measurements_over_tcp(ammeter_type):
+
+@pytest.fixture(params=[GreenleeAmmeter, EntesAmmeter, CircutorAmmeter])
+def running_ammeter(request):
     sockets = []
 
     def create_socket(*args):
@@ -33,7 +35,7 @@ def test_each_emulator_returns_measurements_over_tcp(ammeter_type):
     )
     ready = threading.Event()
     stop = threading.Event()
-    ammeter = ammeter_type(0)
+    ammeter = request.param(0)
     with patch("Ammeters.base_ammeter.socket", socket_module):
         with ThreadPoolExecutor(max_workers=1) as executor:
             server = executor.submit(ammeter.start_server, ready, stop)
@@ -42,25 +44,29 @@ def test_each_emulator_returns_measurements_over_tcp(ammeter_type):
                     if server.done():
                         server.result()
                     pytest.fail("Emulator did not start")
-                port = sockets[0].getsockname()[1]
-                measurement = request_current_from_ammeter(port, ammeter.get_current_command)
-                assert math.isfinite(measurement)
-                assert measurement > 0
-                with socket.create_connection(("localhost", port), timeout=3) as client:
-                    command = ammeter.get_current_command
-                    split = len(command) // 2
-                    client.sendall(command[:split])
-                    client.settimeout(0.1)
-                    with pytest.raises(socket.timeout):
-                        client.recv(1024)
-                    client.sendall(command[split:])
-                    client.settimeout(3)
-                    assert float(client.recv(1024)) > 0
-                ammeter.port = port
-                framework = AmmeterTestFramework({"meter": ammeter})
-                result = framework.run_test("meter", 2, 3, 50)
-                assert result["stop_reason"] == "count"
-                assert len(result["measurements"]) == 2
+                ammeter.port = sockets[0].getsockname()[1]
+                yield ammeter
             finally:
                 stop.set()
         server.result()
+
+
+def test_each_emulator_returns_measurements_over_tcp(running_ammeter):
+    ammeter = running_ammeter
+    measurement = request_current_from_ammeter(ammeter.port, ammeter.get_current_command)
+    assert math.isfinite(measurement)
+    assert measurement > 0
+    with socket.create_connection(("localhost", ammeter.port), timeout=3) as client:
+        command = ammeter.get_current_command
+        split = len(command) // 2
+        client.sendall(command[:split])
+        client.settimeout(0.1)
+        with pytest.raises(socket.timeout):
+            client.recv(1024)
+        client.sendall(command[split:])
+        client.settimeout(3)
+        assert float(client.recv(1024)) > 0
+    framework = AmmeterTestFramework({"meter": ammeter})
+    result = framework.run_test("meter", 2, 3, 50)
+    assert result["stop_reason"] == "count"
+    assert len(result["measurements"]) == 2

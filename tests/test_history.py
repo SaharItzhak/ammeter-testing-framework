@@ -3,7 +3,6 @@ import sqlite3
 import subprocess
 import sys
 import uuid
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -11,17 +10,6 @@ import pytest
 import main
 from src.testing.history import HistoryStore
 from src.testing.test_framework import SamplingFailure
-
-TEST_RUNTIME_CONFIG = {
-    "sampling": {
-        "measurements_count": 1,
-        "total_duration_seconds": 5.0,
-        "sampling_frequency_hz": 1.0,
-    },
-    "ports": {"greenlee": 5001, "entes": 5002, "circutor": 5003},
-    "commands": {"greenlee": None, "entes": None, "circutor": None},
-    "history_database": Path("unused-history.sqlite3"),
-}
 
 def result(ammeter, value):
     return {
@@ -38,6 +26,7 @@ def result(ammeter, value):
         },
     }
 
+@pytest.mark.integration
 class TestHistory:
 
     @pytest.fixture(autouse=True)
@@ -174,10 +163,10 @@ class TestHistory:
         assert self.store.get(first['id']) == first
         assert len(self.store.list_runs()) == 1
 
-    @patch('src.testing.runner.load_runtime_config', return_value=TEST_RUNTIME_CONFIG)
+    @pytest.mark.usefixtures("configured_runner")
     @patch('src.testing.runner.AmmeterTestFramework')
     @patch('src.testing.runner.GreenleeAmmeter.start_server')
-    def test_main_saves_successful_run(self, start_server, framework_factory, runtime_config):
+    def test_main_saves_successful_run(self, start_server, framework_factory):
 
         def serve(ready, stop):
             ready.set()
@@ -192,14 +181,14 @@ class TestHistory:
         assert saved['result'] == result('greenlee', 1.0)
         assert saved['parameters'] == self.parameters
 
-    @patch('src.testing.runner.load_runtime_config', return_value=TEST_RUNTIME_CONFIG)
+    @pytest.mark.usefixtures("configured_runner")
     @patch(
         'src.testing.runner.request_current_from_ammeter',
         side_effect=[1.0, 3.0, TimeoutError('lost connection')],
     )
     @patch('src.testing.runner.GreenleeAmmeter.start_server')
     def test_main_saves_partial_failed_run_and_preserves_history(
-        self, start_server, request, config
+        self, start_server, request
     ):
         earlier = self.save('entes', 4.0)
 
@@ -271,12 +260,12 @@ class TestHistory:
         assert runs[0]['status'] == 'failed'
         assert len(self.store.get(runs[0]['id'])['result']['measurements']) == 1
 
-    @patch('src.testing.runner.load_runtime_config', return_value=TEST_RUNTIME_CONFIG)
+    @pytest.mark.usefixtures("configured_runner")
     @patch('src.testing.runner.HistoryStore.save', side_effect=OSError('disk full'))
     @patch('src.testing.runner.AmmeterTestFramework')
     @patch('src.testing.runner.GreenleeAmmeter.start_server')
     def test_partial_save_failure_reports_original_and_storage_errors(
-        self, start_server, framework_factory, save, config
+        self, start_server, framework_factory, save
     ):
 
         def serve(ready, stop):
@@ -315,11 +304,11 @@ class TestHistory:
         assert missing.returncode != 0
         assert 'Use `list`' in missing.stderr
 
-    @patch('src.testing.runner.load_runtime_config', return_value=TEST_RUNTIME_CONFIG)
+    @pytest.mark.usefixtures("configured_runner")
     @patch('src.testing.runner.AmmeterTestFramework')
     @patch('src.testing.runner.GreenleeAmmeter.start_server')
     def test_main_does_not_save_a_run_without_measurements(
-        self, start_server, framework_factory, runtime_config
+        self, start_server, framework_factory
     ):
 
         def serve(ready, stop):
