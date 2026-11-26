@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typing import TYPE_CHECKING
 
-from src.testing.history import format_timing
+from src.testing.history import format_timestamp, format_timing
 from src.testing.test_framework import coefficient_of_variation
 
 if TYPE_CHECKING:
@@ -28,10 +28,6 @@ def _escape(value: object) -> str:
 
 def _format_number(value: float) -> str:
     return f"{value:.6g}"
-
-
-def _format_timestamp(value: str) -> str:
-    return value.replace("T", " ").replace("+00:00", " UTC")
 
 
 def _measurement_rows(record: HistoryRecord) -> str:
@@ -144,7 +140,7 @@ def _run_row(record: HistoryRecord) -> str:
     details = (
         f'<details><summary>Run details</summary>'
         '<div class="run-meta">'
-        f'<div><span>Started</span><strong dir="ltr">{_escape(_format_timestamp(record["started_at"]))}</strong></div>'
+        f'<div><span>Started</span><strong dir="ltr">{_escape(format_timestamp(record["started_at"]))}</strong></div>'
         f'<div><span>Elapsed</span><strong dir="ltr">{result["elapsed_seconds"]:.3f} s</strong></div>'
         f'<div><span>Stop reason</span><strong>{_escape(result["stop_reason"])}</strong></div>'
         f'<div><span>Sampling settings</span><strong dir="ltr">{parameters["measurements_count"]} measurements · '
@@ -165,7 +161,7 @@ def _run_row(record: HistoryRecord) -> str:
         f'data-mean="{_escape(mean)}">'
         f'<td class="run-id" dir="ltr">{_escape(run_id)}</td>'
         f"<td>{_escape(ammeter.title())}</td>"
-        f'<td dir="ltr">{_escape(_format_timestamp(record["saved_at"]))}</td>'
+        f'<td dir="ltr">{_escape(format_timestamp(record["saved_at"]))}</td>'
         f"<td>{status}</td>"
         f'<td dir="ltr">{len(result["measurements"])}</td>'
         f'<td dir="ltr">{_escape(mean + " A" if mean else "—")}</td>'
@@ -185,7 +181,7 @@ def _comparison_options(records: list[HistoryRecord]) -> str:
         title = (
             f'{record["result"]["ammeter"].title()} · '
             f'{"Failed (partial) · " if record["result"]["stop_reason"] == "error" else ""}'
-            f'{_format_timestamp(record["saved_at"])} · {record["id"][:8]}'
+            f'{format_timestamp(record["saved_at"])} · {record["id"][:8]}'
         )
         options.append(
             f'<option value="{_escape(record["id"])}" {attrs}>{_escape(title)}</option>'
@@ -200,7 +196,7 @@ def _render_html(records: list[HistoryRecord]) -> str:
         for ammeter in ammeters
     )
     rows = "".join(_run_row(record) for record in records)
-    latest = _format_timestamp(records[0]["saved_at"]) if records else "—"
+    latest = format_timestamp(records[0]["saved_at"]) if records else "—"
     empty_state = (
         ""
         if records

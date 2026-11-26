@@ -12,6 +12,16 @@
 - The unused logger was removed. Console output is reserved for run summaries
   and errors; emulator internals do not print per-request diagnostics.
 
+## Fixes to the supplied infrastructure
+
+- The original `main.py` left measurement requests commented out and used
+  incomplete commands. It now starts the emulators and requests measurements
+  with each meter's actual command.
+- The original client only printed a single response. It now returns a
+  validated number, handles fragmented TCP responses, and reports timeouts.
+- Emulator servers now signal readiness and stop cleanly; they also assemble
+  fragmented TCP commands rather than assuming one receive is enough.
+
 ## Sampling and error handling
 
 - One framework serves every ammeter and returns readings, elapsed times,

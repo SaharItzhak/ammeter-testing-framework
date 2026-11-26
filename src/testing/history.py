@@ -15,6 +15,13 @@ from src.testing.test_framework import (
 )
 
 DEFAULT_DATABASE = PROJECT_ROOT / "results" / "history.sqlite3"
+STATISTIC_LABELS = (
+    ("mean", "Mean"),
+    ("median", "Median"),
+    ("standard_deviation", "Population standard deviation"),
+    ("minimum", "Minimum"),
+    ("maximum", "Maximum"),
+)
 
 
 class SamplingParameters(TypedDict):
@@ -134,21 +141,14 @@ class HistoryStore:
         return {"first": first, "second": second, "second_minus_first": differences}
 
 
-def _format_timestamp(value: str) -> str:
+def format_timestamp(value: str) -> str:
     return value.replace("T", " ").replace("+00:00", " UTC")
 
 
 def _format_statistics(statistics: Optional[dict]) -> list[str]:
     if statistics is None:
         return ["  Statistics: unavailable (no measurements)"]
-    labels = (
-        ("mean", "Mean"),
-        ("median", "Median"),
-        ("standard_deviation", "Population standard deviation"),
-        ("minimum", "Minimum"),
-        ("maximum", "Maximum"),
-    )
-    lines = [f"  {label}: {statistics[key]:.6g} A" for key, label in labels]
+    lines = [f"  {label}: {statistics[key]:.6g} A" for key, label in STATISTIC_LABELS]
     variation = coefficient_of_variation(statistics)
     if variation is None:
         lines.append("  Coefficient of variation: unavailable (mean is zero)")
@@ -176,8 +176,8 @@ def _format_run(record: HistoryRecord) -> str:
     lines = [
         f"Run {record['id']}",
         f"Ammeter: {result['ammeter']}",
-        f"Started: {_format_timestamp(record['started_at'])}",
-        f"Saved: {_format_timestamp(record['saved_at'])}",
+        f"Started: {format_timestamp(record['started_at'])}",
+        f"Saved: {format_timestamp(record['saved_at'])}",
         (
             f"Sampling settings: up to {parameters['measurements_count']} measurements, "
             f"{parameters['total_duration_seconds']:g} s, "
@@ -207,7 +207,7 @@ def _format_runs(runs: list[dict[str, str]]) -> str:
         return "No saved runs yet. Run `python main.py` to collect measurements."
     id_width = max(len("RUN ID"), *(len(run["id"]) for run in runs))
     ammeter_width = max(len("AMMETER"), *(len(run["ammeter"]) for run in runs))
-    timestamps = [_format_timestamp(run["saved_at"]) for run in runs]
+    timestamps = [format_timestamp(run["saved_at"]) for run in runs]
     timestamp_width = max(len("SAVED (UTC)"), *(len(value) for value in timestamps))
     lines = [
         f"{'RUN ID':<{id_width}}  {'SAVED (UTC)':<{timestamp_width}}  {'AMMETER':<{ammeter_width}}  STATUS",
@@ -236,14 +236,7 @@ def _format_comparison(comparison: dict) -> str:
         lines.append("Statistics comparison unavailable (one or both runs have no measurements).")
         return "\n".join(lines)
 
-    labels = (
-        ("mean", "Mean"),
-        ("median", "Median"),
-        ("standard_deviation", "Population standard deviation"),
-        ("minimum", "Minimum"),
-        ("maximum", "Maximum"),
-    )
-    label_width = max(len(label) for _, label in labels)
+    label_width = max(len(label) for _, label in STATISTIC_LABELS)
     lines.extend(
         [
             "",
@@ -254,7 +247,7 @@ def _format_comparison(comparison: dict) -> str:
     lines.extend(
         f"{label:<{label_width}}  {first_stats[key]:>12.6g}  "
         f"{second_stats[key]:>12.6g}  {differences[key]:>12.6g} A"
-        for key, label in labels
+        for key, label in STATISTIC_LABELS
     )
     return "\n".join(lines)
 

@@ -45,14 +45,14 @@ def run(
     validate_sampling_options(count, duration, frequency)
     validate_simulate_error_after(simulate_error_after)
 
+    meter_types = {
+        "greenlee": GreenleeAmmeter,
+        "entes": EntesAmmeter,
+        "circutor": CircutorAmmeter,
+    }
     ammeters = {
-        "greenlee": GreenleeAmmeter(
-            config["ports"]["greenlee"], config["commands"]["greenlee"]
-        ),
-        "entes": EntesAmmeter(config["ports"]["entes"], config["commands"]["entes"]),
-        "circutor": CircutorAmmeter(
-            config["ports"]["circutor"], config["commands"]["circutor"]
-        ),
+        name: meter(config["ports"][name], config["commands"][name])
+        for name, meter in meter_types.items()
     }
     selected = (
         ammeters
